@@ -24,6 +24,12 @@ export class AiService {
     this.openai = new OpenAI({
       apiKey: apiKey || 'dummy-key', // Use dummy key if not set to prevent crashes
     });
+
+    if (apiKey) {
+      this.logger.log(`OpenAI API Key loaded: ${apiKey.substring(0, 10)}... (Total length: ${apiKey.length})`);
+    } else {
+      this.logger.error('CRITICAL: OPENAI_API_KEY is missing from configuration!');
+    }
   }
 
   async chat(chatMessageDto: ChatMessageDto, tenantId?: string): Promise<{ response: string }> {
@@ -413,7 +419,11 @@ Be concise, friendly, and practical. Provide actionable advice.`;
   }
   async generateReportStructure(prompt: string): Promise<{ name: string; description: string; structure: any }> {
     try {
-      if (this.openai.apiKey === 'dummy-key') {
+      this.logger.log(`Generating report structure for prompt: "${prompt}"`);
+      
+      const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+      if (!apiKey || apiKey === 'dummy-key') {
+        this.logger.error('Attempted to generate report structure without a valid OpenAI API Key');
         return { name: 'AI Report', description: '', structure: null };
       }
 
@@ -451,17 +461,28 @@ Be concise, friendly, and practical. Provide actionable advice.`;
       });
 
       const content = completion.choices[0]?.message?.content || '{}';
+      this.logger.log(`AI Raw Response: ${content.substring(0, 200)}...`);
+      
       const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
       
-      const report = JSON.parse(cleanContent);
-      return {
-        name: report.name || 'AI Generated Report',
-        description: report.description || '',
-        structure: report.structure || {}
-      };
+      try {
+        const report = JSON.parse(cleanContent);
+        return {
+          name: report.name || 'AI Generated Report',
+          description: report.description || '',
+          structure: report.structure || {}
+        };
+      } catch (parseError) {
+        this.logger.error(`Failed to parse AI JSON response: ${parseError.message}`);
+        this.logger.debug(`Raw content that failed: ${content}`);
+        return { name: 'Parse Error', description: 'Failed to parse AI response', structure: null };
+      }
     } catch (error) {
       this.logger.error('Error generating report structure:', error);
-      return { name: 'Error', description: 'Failed to generate report', structure: null };
+      if (error.response) {
+        this.logger.error(`OpenAI error details: ${JSON.stringify(error.response.data)}`);
+      }
+      return { name: 'Error', description: `Failed to generate report: ${error.message}`, structure: null };
     }
   }
 }

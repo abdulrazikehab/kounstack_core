@@ -15,7 +15,7 @@ export class DynamicReportService {
     const aiResult = await this.aiService.generateReportStructure(prompt);
     
     if (!aiResult.structure) {
-      throw new Error('AI failed to generate report structure');
+      throw new Error(`AI failed to generate report structure: ${aiResult.description || 'Unknown error'}`);
     }
 
     // Create a pending report structure
