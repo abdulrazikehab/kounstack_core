@@ -1,0 +1,175 @@
+// Add these models to your schema.prisma file
+// Append to the end of the file
+
+model Domain {
+  id           String   @id @default(cuid())
+  tenantId     String
+  subdomain    String   @unique
+  customDomain String?  @unique
+  isPrimary    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([subdomain])
+  @@map("Domain")
+}
+
+model PaymentSettings {
+  id       String  @id @default(cuid())
+  tenantId String  @unique
+  
+  // HyperPay
+  hyperPayEnabled      Boolean @default(false)
+  hyperPayEntityId     String?
+  hyperPayAccessToken  String?
+  hyperPayTestMode     Boolean @default(true)
+  hyperPayCurrency     String  @default("SAR")
+  
+  // Stripe
+  stripeEnabled        Boolean @default(false)
+  stripePublishableKey String?
+  stripeSecretKey      String?
+  
+  // PayPal
+  payPalEnabled        Boolean @default(false)
+  payPalClientId       String?
+  payPalSecret         String?
+  
+  // Cash on Delivery
+  codEnabled           Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_settings")
+}
+
+model Integration {
+  id       String  @id @default(cuid())
+  tenantId String
+  type     String  // 'shipping', 'sms', 'email', 'webhook', 'analytics'
+  provider String  // 'aramex', 'twilio', 'sendgrid', etc.
+  name     String
+  apiKey   String?
+  apiSecret String?
+  endpoint String?
+  config   Json    @default("{}")
+  enabled  Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, type])
+  @@map("integrations")
+}
+
+model Permission {
+  id        String @id @default(cuid())
+  tenantId  String
+  userId    String
+  role      String // 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF', 'CUSTOMER'
+  resources Json   @default("{}")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, userId])
+  @@map("permissions")
+}
+
+model KYC {
+  id       String  @id @default(cuid())
+  userId   String  @unique
+  tenantId String
+  
+  // Verification Status
+  emailVerified Boolean @default(false)
+  phoneVerified Boolean @default(false)
+  idVerified    Boolean @default(false)
+  
+  // Documents
+  idType        String?
+  idNumber      String?
+  idFrontImage  String?
+  idBackImage   String?
+  selfieImage   String?
+  
+  // Status
+  status          String    @default("pending")
+  rejectionReason String?
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("kyc")
+}
+
+model CheckoutSettings {
+  id       String  @id @default(cuid())
+  tenantId String  @unique
+  
+  // Guest Checkout
+  allowGuestCheckout      Boolean @default(true)
+  requireEmailForGuests   Boolean @default(true)
+  requirePhoneForGuests   Boolean @default(true)
+  forceAccountCreation    Boolean @default(false)
+  
+  // KYC Requirements
+  requireEmailVerification Boolean @default(false)
+  requirePhoneVerification Boolean @default(false)
+  requireIdVerification    Boolean @default(false)
+  idVerificationThreshold  Decimal @default(1000)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("checkout_settings")
+}
+
+// Also update the Order model to add these fields:
+// Add to existing Order model:
+//   userId      String?  // Optional for guest checkout
+//   isGuest     Boolean  @default(false)
+//   guestEmail  String?
+//   guestName   String?
+//   guestPhone  String?
+
+model PurchaseLimits {
+  id       String  @id @default(cuid())
+  tenantId String  @unique
+  
+  // Default limits for guest/unverified customers
+  defaultLimitAmount        Decimal @default(1000)
+  
+  // Limits per customer layer (tier) - stored as JSON
+  // Format: { "tierId": { "baseLimit": 5000, "increasePerPurchase": 100 } }
+  tierLimits                Json    @default("{}")
+  
+  // Purchase count tracking for limit increases
+  // Format: { "customerId": { "purchaseCount": 5, "currentLimit": 5500 } }
+  customerLimitTracking     Json    @default("{}")
+  
+  // Credit card tracking - hash of last 4 digits + expiration for same card detection
+  // Format: { "cardHash": { "customerEmail": "email@example.com", "usageCount": 3, "totalAmount": 5000 } }
+  creditCardTracking        Json    @default("{}")
+  
+  // Enable credit card checking
+  enableCreditCardTracking  Boolean @default(true)
+  
+  // Enable purchase count increase
+  enablePurchaseCountIncrease Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@map("purchase_limits")
+}
