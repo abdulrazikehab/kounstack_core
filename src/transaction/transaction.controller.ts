@@ -31,6 +31,7 @@ export class TransactionController {
     @Request() req: any,
     @Query('tenantId') tenantId: string,
     @Query('status') status?: TransactionStatus,
+    @Query('customerEmail') customerEmail?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit = 50,
@@ -43,6 +44,7 @@ export class TransactionController {
 
     return this.transactionService.getTransactions(targetTenantId, {
       status,
+      customerEmail,
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
       limit,

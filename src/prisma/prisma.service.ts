@@ -159,6 +159,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   // Customer Registration Request Model
   get customerRegistrationRequest() { return this.prisma.customerRegistrationRequest; }
 
+  // Dynamic Reports Model
+  get dynamicReport() { return this.prisma.dynamicReport; }
+
   $transaction(p: any) {
     return this.prisma.$transaction(p);
   }

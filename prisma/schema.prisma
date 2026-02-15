@@ -73,6 +73,7 @@ model Tenant {
   emergencyInventoryItems      EmergencyInventory[]
   inventoryVisibilityOverrides InventoryVisibilityOverride[]
   customerRegistrationRequests CustomerRegistrationRequest[]
+  dynamicReports               DynamicReport[]              @relation("TenantReports")
 
   @@map("tenants")
 }
@@ -791,6 +792,7 @@ model User {
   topUpRequests   WalletTopUpRequest[] @relation("TopUpRequests")
   processedRegistrationRequests CustomerRegistrationRequest[] @relation("ProcessedRegistrationRequests")
   wallet          Wallet?
+  createdReports  DynamicReport[]      @relation("ReportCreator")
 
   @@unique([tenantId, email])
   @@unique([tenantId, phone])
@@ -2600,4 +2602,24 @@ model SupplierProduct {
   lastSyncedAt      DateTime @map("last_synced_at")
 
   @@map("supplier_products")
+}
+
+model DynamicReport {
+  id               String   @id @default(cuid())
+  tenantId         String
+  name             String
+  description      String?
+  prompt           String
+  structure        Json
+  status           String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  platformVerified Boolean  @default(false)
+  createdBy        String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  tenant           Tenant   @relation("TenantReports", fields: [tenantId], references: [id])
+  creator          User     @relation("ReportCreator", fields: [createdBy], references: [id])
+
+  @@index([tenantId])
+  @@map("dynamic_reports")
 }

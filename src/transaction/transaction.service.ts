@@ -76,40 +76,90 @@ export class TransactionService {
     tenantId: string,
     filters?: {
       status?: TransactionStatus;
+      customerEmail?: string;
       startDate?: Date;
       endDate?: Date;
       limit?: number;
       offset?: number;
     },
   ) {
-    const where: Prisma.TransactionWhereInput = {
+    const whereTransaction: Prisma.TransactionWhereInput = {
       tenantId,
       ...(filters?.status && { status: filters.status }),
-      ...(filters?.startDate &&
-        filters?.endDate && {
+      ...(filters?.customerEmail && {
+        OR: [
+          { customerEmail: { equals: filters.customerEmail, mode: 'insensitive' } },
+          { order: { customerEmail: { equals: filters.customerEmail, mode: 'insensitive' } } }
+        ]
+      }),
+      ...(filters?.startDate && filters?.endDate && {
           createdAt: {
             gte: filters.startDate,
             lte: filters.endDate,
           },
-        }),
+      }),
     };
 
-    const [transactions, total] = await Promise.all([
+    // Also query WalletTransactions if customerEmail is provided
+    let walletTransactions: any[] = [];
+    if (filters?.customerEmail) {
+      // Find user with case-insensitivity
+      const user = await this.prisma.user.findFirst({
+        where: { 
+          email: { equals: filters.customerEmail, mode: 'insensitive' },
+          tenantId 
+        },
+        include: { 
+          wallet: {
+            include: {
+              transactions: {
+                where: {
+                  ...(filters?.startDate && filters?.endDate && {
+                    createdAt: {
+                      gte: filters.startDate,
+                      lte: filters.endDate,
+                    },
+                  }),
+                },
+                orderBy: { createdAt: 'desc' },
+                take: filters?.limit || 50,
+              }
+            }
+          } 
+        }
+      });
+      
+      if (user?.wallet?.transactions) {
+        walletTransactions = user.wallet.transactions;
+        
+        // Enhance wallet transactions with order numbers if reference is an order ID
+        const orderIds = walletTransactions
+          .filter(wt => wt.reference && wt.reference.length > 20) // Likely a UUID
+          .map(wt => wt.reference);
+          
+        if (orderIds.length > 0) {
+          const orders = await this.prisma.order.findMany({
+            where: { id: { in: orderIds as string[] } },
+            select: { id: true, orderNumber: true }
+          });
+          const orderMap = new Map(orders.map(o => [o.id, o.orderNumber]));
+          walletTransactions = walletTransactions.map(wt => ({
+            ...wt,
+            orderNumber: orderMap.get(wt.reference || '') || wt.reference
+          }));
+        }
+      }
+    }
+
+    const [transactions, totalTransactions] = await Promise.all([
       this.prisma.transaction.findMany({
-        where,
+        where: whereTransaction,
         include: {
           order: {
             select: {
               orderNumber: true,
               customerName: true,
               customerEmail: true,
-              orderItems: {
-                select: {
-                  productName: true,
-                  quantity: true,
-                  price: true,
-                },
-              },
             },
           },
         },
@@ -117,37 +167,86 @@ export class TransactionService {
         take: filters?.limit || 50,
         skip: filters?.offset || 0,
       }),
-      this.prisma.transaction.count({ where }),
+      this.prisma.transaction.count({ where: whereTransaction }),
     ]);
 
-    return {
-      transactions: transactions.map((t: any) => ({
+    // Map both types to a common interface
+    const mappedTransactions = transactions.map((t: any) => {
+      const metadata = (t.metadata as any) || {};
+      const isPurchase = Number(t.amount) < 0 || t.description?.toLowerCase().includes('purchase') || t.description?.toLowerCase().includes('شراء');
+      const amount = isPurchase ? -Math.abs(Number(t.amount)) : Math.abs(Number(t.amount));
+      
+      return {
         id: t.id,
+        source: 'PLATFORM',
         orderNumber: t.orderNumber || t.order?.orderNumber,
-        amount: Number(t.amount),
-        platformFee: Number(t.platformFee),
-        merchantEarnings: Number(t.merchantEarnings),
-        currency: t.currency,
+        amount,
+        currency: t.currency || 'SAR',
         status: t.status,
-        paymentProvider: t.paymentProvider,
-        paymentMethodType: t.paymentMethodType,
-        customerEmail: t.customerEmail || t.order?.customerEmail,
-        customerName: t.customerName || t.order?.customerName,
+        type: isPurchase ? 'PURCHASE' : 'TOPUP',
         description: t.description,
-        orderItems: t.order?.orderItems || [],
-        processedAt: t.processedAt,
-        settledAt: t.settledAt,
+        ipAddress: metadata.ipAddress || '127.0.0.1',
+        userAgent: metadata.userAgent || 'Unknown',
+        device: metadata.device || (metadata.userAgent?.includes('Windows') ? 'Windows PC' : 'غير معروف'),
+        performedBy: {
+          name: t.customerName || t.order?.customerName || 'النظام',
+          email: t.customerEmail || t.order?.customerEmail || '',
+        },
         createdAt: t.createdAt,
-        // Card details (from metadata)
-        cardNumber: (t.metadata as any)?.cardNumber,
-        cardBin: (t.metadata as any)?.cardBin,
-        cardLast4: (t.metadata as any)?.cardLast4,
-        // Print tracking (from metadata)
-        printCount: (t.metadata as any)?.printCount || 0,
-      })),
-      total,
-      limit: filters?.limit || 50,
-      offset: filters?.offset || 0,
+      };
+    });
+
+    const mappedWallet = walletTransactions.map((t: any) => ({
+      id: t.id,
+      source: 'WALLET',
+      orderNumber: t.orderNumber || (t.reference?.startsWith('ORD-') ? t.reference : null),
+      amount: Number(t.amount),
+      currency: t.currency || 'SAR',
+      status: t.status,
+      type: t.type, // Already 'TOPUP' or 'PURCHASE'
+      description: t.descriptionAr || t.description,
+      ipAddress: t.ipAddress || '127.0.0.1',
+      userAgent: t.userAgent || 'Unknown',
+      device: t.userAgent?.includes('Windows') ? 'Windows PC' : 'غير معروف',
+      performedBy: {
+        name: t.performedByUserId ? 'Admin' : 'Customer',
+        email: '',
+      },
+      createdAt: t.createdAt,
+    }));
+
+    // Merge and sort
+    const all = [...mappedTransactions, ...mappedWallet]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, filters?.limit || 50);
+
+    // Final mapping for display fixes
+    const data = all.map(t => {
+      let desc = t.description || '';
+      if (desc === 'Wallet top-up approved') desc = 'تم قبول شحن الرصيد';
+      if (desc.startsWith('Purchase: Order')) {
+        desc = desc.replace('Purchase: Order', 'شراء: طلب').replace('(Auto-deducted on delivery)', '(خصم تلقائي عند التسليم)');
+      }
+
+      let performer = t.performedBy;
+      if (performer.name === 'System' || !performer.name) performer.name = 'النظام';
+      if (performer.name === 'Admin') performer.name = 'الإدارة';
+
+      return {
+        ...t,
+        description: desc,
+        performedBy: performer,
+      };
+    });
+
+    return {
+      data,
+      meta: {
+        total: totalTransactions + walletTransactions.length,
+        limit: filters?.limit || 50,
+        offset: filters?.offset || 0,
+        totalPages: Math.ceil((totalTransactions + walletTransactions.length) / (filters?.limit || 50)),
+      }
     };
   }
 

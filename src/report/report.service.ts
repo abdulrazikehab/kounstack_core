@@ -227,19 +227,6 @@ export class ReportService {
         where: { tenantId },
         orderBy: { createdAt: 'desc' },
         take: 1000,
-        include: {
-          wallet: {
-            include: {
-              user: {
-                select: {
-                  email: true,
-                  name: true,
-                  role: true,
-                }
-              }
-            }
-          }
-        }
       });
 
       return transactions.map((t: any) => ({
@@ -250,12 +237,12 @@ export class ReportService {
         status: t.status,
         method: t.paymentMethodType || t.paymentProvider || 'System',
         provider: t.paymentProvider,
-        orderId: t.reference?.startsWith('order_') ? t.reference.replace('order_', '') : t.reference,
-        customerName: t.wallet?.user?.name || t.wallet?.user?.email?.split('@')[0] || 'Unknown',
-        customerEmail: t.wallet?.user?.email || 'Unknown',
-        customerRole: t.wallet?.user?.role || 'CUSTOMER',
+        orderId: t.orderId || t.orderNumber || 'N/A',
+        customerName: t.customerName || 'Unknown',
+        customerEmail: t.customerEmail || 'Unknown',
+        customerRole: 'CUSTOMER',
         createdAt: t.createdAt,
-        type: t.type,
+        type: 'PAYMENT',
       }));
     } catch (error: any) {
       if (error?.code === 'P2003' || error?.message?.includes('Foreign key constraint')) {

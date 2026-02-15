@@ -1,0 +1,265 @@
+{
+  "info": {
+    "_postman_id": "a2b3c4d5-e6f7-4g8h-9i0j-1k2l3m4n5o6p",
+    "name": "Cart & Checkout Full Workflow",
+    "description": "Comprehensive collection covering all CRUD operations for Carts (Consumer & Merchant) and complete Checkout processes including Guest flows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Consumer Cart (Storefront)",
+      "item": [
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-tenant-id", "value": "{{tenantId}}", "type": "text" },
+              { "key": "x-session-id", "value": "{{sessionId}}", "type": "text" }
+            ],
+            "url": { "raw": "{{baseUrl}}/cart", "host": ["{{baseUrl}}"], "path": ["cart"] },
+            "description": "Read: Retrieves the current cart for a guest or authenticated user."
+          }
+        },
+        {
+          "name": "Add Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-tenant-id", "value": "{{tenantId}}", "type": "text" },
+              { "key": "x-session-id", "value": "{{sessionId}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1,\n  \"productVariantId\": null\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/cart/items", "host": ["{{baseUrl}}"], "path": ["cart", "items"] },
+            "description": "Create: Adds a product or variant to the cart."
+          }
+        },
+        {
+          "name": "Update Item Quantity",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "x-tenant-id", "value": "{{tenantId}}", "type": "text" },
+              { "key": "x-session-id", "value": "{{sessionId}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 3\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/cart/items/{{cartItemId}}", "host": ["{{baseUrl}}"], "path": ["cart", "items", "{{cartItemId}}"] },
+            "description": "Update: Modifies the quantity of a specific cart item."
+          }
+        },
+        {
+          "name": "Remove Item",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "x-tenant-id", "value": "{{tenantId}}", "type": "text" },
+              { "key": "x-session-id", "value": "{{sessionId}}", "type": "text" }
+            ],
+            "url": { "raw": "{{baseUrl}}/cart/items/{{cartItemId}}", "host": ["{{baseUrl}}"], "path": ["cart", "items", "{{cartItemId}}"] },
+            "description": "Delete: Removes a single item from the cart."
+          }
+        },
+        {
+          "name": "Clear Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "x-tenant-id", "value": "{{tenantId}}", "type": "text" },
+              { "key": "x-session-id", "value": "{{sessionId}}", "type": "text" }
+            ],
+            "url": { "raw": "{{baseUrl}}/cart", "host": ["{{baseUrl}}"], "path": ["cart"] },
+            "description": "Delete: Removes all items from the current cart."
+          }
+        },
+        {
+          "name": "Get Cart Totals",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-tenant-id", "value": "{{tenantId}}", "type": "text" },
+              { "key": "x-session-id", "value": "{{sessionId}}", "type": "text" }
+            ],
+            "url": { "raw": "{{baseUrl}}/cart/total", "host": ["{{baseUrl}}"], "path": ["cart", "total"] },
+            "description": "Calculates tax, shipping, and total for the current cart."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Merchant Cart (B2B/Internal)",
+      "item": [
+        {
+          "name": "Get Merchant Cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{merchantToken}}", "type": "text" }
+            ],
+            "url": { "raw": "{{baseUrl}}/merchant/cart", "host": ["{{baseUrl}}"], "path": ["merchant", "cart"] },
+            "description": "Read: Retrieves the specialized procurement cart for merchants."
+          }
+        },
+        {
+          "name": "Add Merchant Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{merchantToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"qty\": 10,\n  \"metadata\": { \"accountIdentifier\": \"restock_batch_01\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/merchant/cart/items", "host": ["{{baseUrl}}"], "path": ["merchant", "cart", "items"] },
+            "description": "Create: Adds internal items to the merchant cart."
+          }
+        },
+        {
+          "name": "Update Merchant Item",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{merchantToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qty\": 15\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/merchant/cart/items/{{merchantCartItemId}}", "host": ["{{baseUrl}}"], "path": ["merchant", "cart", "items", "{{merchantCartItemId}}"] },
+            "description": "Update: Modifies quantity for items in merchant cart."
+          }
+        },
+        {
+          "name": "Remove Merchant Item",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{merchantToken}}", "type": "text" }
+            ],
+            "url": { "raw": "{{baseUrl}}/merchant/cart/items/{{merchantCartItemId}}", "host": ["{{baseUrl}}"], "path": ["merchant", "cart", "items", "{{merchantCartItemId}}"] },
+            "description": "Delete: Removes item from merchant cart."
+          }
+        },
+        {
+          "name": "Clear Merchant Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{merchantToken}}", "type": "text" }
+            ],
+            "url": { "raw": "{{baseUrl}}/merchant/cart/clear", "host": ["{{baseUrl}}"], "path": ["merchant", "cart", "clear"] },
+            "description": "Delete: Clears all items from the professional merchant cart."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Checkout Process",
+      "item": [
+        {
+          "name": "Process Regular Checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-tenant-id", "value": "{{tenantId}}", "type": "text" },
+              { "key": "x-session-id", "value": "{{sessionId}}", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerEmail\": \"customer@example.com\",\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"+966500000000\",\n  \"paymentMethod\": \"WALLET_BALANCE\",\n  \"useWalletBalance\": true,\n  \"serialNumberDelivery\": [\"email\", \"text\"]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/checkout", "host": ["{{baseUrl}}"], "path": ["checkout"] },
+            "description": "Finalizes the order using items currently in the consumer cart."
+          }
+        },
+        {
+          "name": "Process Guest Checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-tenant-id", "value": "{{tenantId}}", "type": "text" },
+              { "key": "x-tenant-domain", "value": "{{tenantDomain}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"guest@example.com\",\n  \"name\": \"Guest User\",\n  \"phone\": \"+966511111111\",\n  \"paymentMethod\": \"BANK_TRANSFER\",\n  \"cartItems\": [\n    { \"productId\": \"{{productId}}\", \"qty\": 1 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/guest-checkout/order", "host": ["{{baseUrl}}"], "path": ["guest-checkout", "order"] },
+            "description": "Creates an order directly for users without accounts."
+          }
+        },
+        {
+          "name": "Track Guest Order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/guest-checkout/track?orderNumber={{orderNumber}}&email={{customerEmail}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["guest-checkout", "track"],
+              "query": [
+                { "key": "orderNumber", "value": "{{orderNumber}}" },
+                { "key": "email", "value": "{{customerEmail}}" }
+              ]
+            },
+            "description": "Retrieves status for a guest order using order number and email."
+          }
+        },
+        {
+          "name": "Lookup Orders by Email",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "x-tenant-id", "value": "{{tenantId}}", "type": "text" } ],
+            "url": {
+              "raw": "{{baseUrl}}/guest-checkout/orders-by-email?email={{customerEmail}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["guest-checkout", "orders-by-email"],
+              "query": [ { "key": "email", "value": "{{customerEmail}}" } ]
+            },
+            "description": "Lists all orders (guest and regular) associated with an email address."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Settings & Utilities",
+      "item": [
+        {
+          "name": "Get Checkout Settings",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "x-tenant-domain", "value": "{{tenantDomain}}", "type": "text" } ],
+            "url": { "raw": "{{baseUrl}}/checkout/settings", "host": ["{{baseUrl}}"], "path": ["checkout", "settings"] },
+            "description": "Retrieves available payment methods and checkout configuration for the store."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api", "type": "string" },
+    { "key": "tenantId", "value": "clz_tenant_001", "type": "string" },
+    { "key": "tenantDomain", "value": "store.saeaa.com", "type": "string" },
+    { "key": "sessionId", "value": "mobile-session-999", "type": "string" },
+    { "key": "accessToken", "value": "user_bearer_token", "type": "string" },
+    { "key": "merchantToken", "value": "merchant_bearer_token", "type": "string" },
+    { "key": "productId", "value": "prod_uuid_here", "type": "string" },
+    { "key": "cartItemId", "value": "item_uuid_here", "type": "string" },
+    { "key": "merchantCartItemId", "value": "m_item_uuid_here", "type": "string" },
+    { "key": "orderNumber", "value": "ORD-12345", "type": "string" },
+    { "key": "customerEmail", "value": "customer@example.com", "type": "string" }
+  ]
+}

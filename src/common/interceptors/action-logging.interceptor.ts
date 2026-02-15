@@ -66,11 +66,12 @@ export class ActionLoggingInterceptor implements NestInterceptor {
                 data: {
                   tenantId,
                   actorId: user?.id || user?.sub || 'anonymous',
-                  action: `${method} ${url.split('?')[0]}`,
+                  action: this.getFriendlyActionName(method, url),
                   targetId: params?.id || query?.id || body?.id || null,
                   details: {
                     method,
                     url,
+                    originalAction: `${method} ${url.split('?')[0]}`,
                     body: this.sanitizeBody(body),
                     query,
                     params,
@@ -97,6 +98,64 @@ export class ActionLoggingInterceptor implements NestInterceptor {
         }
       }),
     );
+  }
+
+  private getFriendlyActionName(method: string, url: string): string {
+    const path = url.split('?')[0].toLowerCase();
+    
+    // Mapping for common dashboard endpoints
+    if (path.includes('/api/reports/payments')) return 'عرض تقارير المدفوعات';
+    if (path.includes('/api/reports')) return 'عرض التقارير العام';
+    if (path.includes('/api/orders')) return method === 'GET' ? 'عرض الطلبات' : 'تحديث طلب';
+    if (path.includes('/api/suppliers')) return 'عرض قائمة الموردين';
+    if (path.includes('/api/categories')) return 'عرض التصنيفات';
+    if (path.includes('/api/brands')) return 'عرض العلامات التجارية';
+    if (path.includes('/api/products')) return method === 'GET' ? 'عرض المنتجات / المخزون' : 'تحديث منتج';
+    if (path.includes('/api/customers')) return 'عرض بيانات العملاء';
+    if (path.includes('/api/transactions')) return 'عرض السجل المالي';
+    if (path.includes('/api/wallet')) return 'إدارة المحفظة والرصيد';
+    if (path.includes('/api/settings')) return 'تحديث إعدادات المتجر';
+    if (path.includes('/api/auth/login')) return 'تسجيل الدخول';
+    if (path.includes('/api/auth/logout')) return 'تسجيل الخروج';
+    
+    // Fallback if no specific mapping
+    const resource = this.getResourceType(url).toLowerCase();
+    const actionMap: Record<string, string> = {
+      'get': 'عرض',
+      'post': 'إضافة',
+      'put': 'تحديث',
+      'patch': 'تحديث',
+      'delete': 'حذف',
+    };
+
+    const resourceMap: Record<string, string> = {
+      'product': 'منتجات',
+      'order': 'طلبات',
+      'category': 'تصنيفات',
+      'cart': 'سلة التسوق',
+      'checkout': 'إتمام الطلب',
+      'page': 'صفحات',
+      'theme': 'القوالب',
+      'settings': 'الإعدادات',
+      'domain': 'النطاقات',
+      'template': 'القوالب',
+      'collection': 'المجموعات',
+      'coupon': 'القسائم',
+      'shipping': 'الشحن',
+      'tax': 'الضرائب',
+      'customer': 'العملاء',
+      'dashboard': 'لوحة التحكم',
+      'analytics': 'التحليلات',
+      'report': 'التقارير',
+      'transaction': 'العمليات',
+      'payment': 'المدفوعات',
+      'system': 'النظام'
+    };
+
+    const translatedAction = actionMap[method.toLowerCase()] || method;
+    const translatedResource = resourceMap[resource] || resource;
+
+    return `${translatedAction} ${translatedResource}`;
   }
 
   private getResourceType(url: string): string {

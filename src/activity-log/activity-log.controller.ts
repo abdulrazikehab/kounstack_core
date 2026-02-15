@@ -109,7 +109,7 @@ export class ActivityLogController {
         userId: log.actorId,
         metadata: typeof log.details === 'string' ? JSON.parse(log.details || '{}') : log.details || {},
         createdAt: log.createdAt,
-        entityType: log.action ? log.action.split('.')[0] : 'unknown',
+        entityType: (log.details as any)?.resourceType || (log.action && !log.action.includes('/') ? log.action.split('.')[0] : this.extractEntityType(log.action)),
         entityId: log.targetId,
         actor: actor ? {
           id: actor.id,
@@ -132,5 +132,16 @@ export class ActivityLogController {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  private extractEntityType(action: string): string {
+    if (!action) return 'unknown';
+    // Remove method and /api/
+    const path = action.split(' ').pop()?.toLowerCase() || '';
+    if (path.includes('/api/')) {
+      const segments = path.split('/api/')[1].split('/');
+      return segments[0] || 'system';
+    }
+    return action.includes('.') ? action.split('.')[0] : action;
   }
 }

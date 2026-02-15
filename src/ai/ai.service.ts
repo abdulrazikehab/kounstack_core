@@ -411,4 +411,57 @@ Be concise, friendly, and practical. Provide actionable advice.`;
       return { amount: null };
     }
   }
+  async generateReportStructure(prompt: string): Promise<{ name: string; description: string; structure: any }> {
+    try {
+      if (this.openai.apiKey === 'dummy-key') {
+        return { name: 'AI Report', description: '', structure: null };
+      }
+
+      const systemPrompt = `You are a data architect and report designer.
+      Generate a JSON object representing a custom report structure based on the user's requirement.
+      
+      The output MUST be a valid JSON object with this structure:
+      {
+        "name": "Report Name",
+        "description": "Brief description of what this report shows",
+        "structure": {
+          "dataSource": "orders" | "transactions" | "products" | "customers",
+          "columns": [
+            { "key": "field_name", "label": "Column Header", "type": "string" | "number" | "date" | "currency", "calculate": "expression_if_needed" }
+          ],
+          "calculations": [
+            { "label": "Metric Name", "formula": "sum(amount)", "format": "currency" }
+          ],
+          "visuals": [
+            { "type": "bar" | "line" | "pie", "xAxis": "key", "yAxis": "key" }
+          ]
+        }
+      }
+
+      Return ONLY the JSON object. Do not include markdown formatting like \`\`\`json.`;
+
+      const completion = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 1500,
+      });
+
+      const content = completion.choices[0]?.message?.content || '{}';
+      const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      const report = JSON.parse(cleanContent);
+      return {
+        name: report.name || 'AI Generated Report',
+        description: report.description || '',
+        structure: report.structure || {}
+      };
+    } catch (error) {
+      this.logger.error('Error generating report structure:', error);
+      return { name: 'Error', description: 'Failed to generate report', structure: null };
+    }
+  }
 }
