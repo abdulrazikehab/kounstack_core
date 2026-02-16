@@ -108,7 +108,7 @@ model PasswordReset {
   used       Boolean  @default(false)
   createdAt  DateTime @default(now())
   userId     String?
-  signupData String?  @db.Text
+  signupData String?  @db.LongText
   user       User?    @relation(fields: [userId], references: [id])
 
   @@index([email, code])
@@ -138,11 +138,11 @@ model AuditLog {
   action       String
   resourceId   String?
   resourceType String?
-  oldValues    String?  @db.Text
-  newValues    String?  @db.Text
+  oldValues    String?  @db.LongText
+  newValues    String?  @db.LongText
   ipAddress    String?
   userAgent    String?
-  metadata     String?  @db.Text
+  metadata     String?  @db.LongText
   createdAt    DateTime @default(now())
   tenant       Tenant?  @relation(fields: [tenantId], references: [id])
   user         User?    @relation(fields: [userId], references: [id])
@@ -180,7 +180,7 @@ model SecurityEvent {
   ipAddress   String?
   userAgent   String?
   description String
-  metadata    String?           @db.Text
+  metadata    String?           @db.LongText
   country     String?
   countryCode String?
   city        String?
@@ -231,7 +231,7 @@ model MerchantLimits {
   maxSinglePayment      Float    @default(5000)
   maxDailyVolume        Float    @default(20000)
   maxMonthlyVolume      Float    @default(100000)
-  allowedPaymentMethods String   @db.Text
+  allowedPaymentMethods String   @db.LongText
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   tenant                Tenant   @relation(fields: [tenantId], references: [id])
@@ -248,7 +248,7 @@ model Customer {
   lastName        String?
   password        String?
   recoveryId      String?            @unique
-  metadata        String?            @db.Text
+  metadata        String?            @db.LongText
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   inviteExpiresAt DateTime?
