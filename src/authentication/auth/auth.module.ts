@@ -11,7 +11,7 @@ import { OAuthController } from './oauth.controller';
 import { KycController } from '../kyc/kyc.controller';
 import { CustomersController } from '../customers/customers.controller';
 import { JwtStrategy } from '../guard/jwt.strategy';
-import { GoogleOAuthStrategy } from '../strategies/google-oauth.strategy';
+// import { GoogleOAuthStrategy } from '../strategies/google-oauth.strategy'; // ⚠️ COMMENTED OUT: Uncomment when Google OAuth env vars are configured
 import { JwtAuthGuard } from '../guard/jwt-auth.guard';
 import { PaymentLimitsGuard } from '../guard/payment-limits.guard';
 import { PrismaModule } from '../../prisma/prisma.module';
@@ -51,7 +51,7 @@ import { CustomersService } from '../customers/customers.service';
   providers: [
     AuthService,
     JwtStrategy,
-    GoogleOAuthStrategy,
+    // GoogleOAuthStrategy, // ⚠️ COMMENTED OUT: Uncomment when Google OAuth env vars are configured
     JwtAuthGuard,
     PaymentLimitsGuard,   // ✅ NEW
     KycService,           // ✅ NEW
