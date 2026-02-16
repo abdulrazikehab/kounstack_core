@@ -1,0 +1,32 @@
+
+app:
+  name: "My Store App"
+  shortName: "My Store App"
+  applicationId: "com.saeaa.store.c692ca44"
+  iconUrl: "/icons/icon-512x512.png"
+  startUrl: "http://localhost:8080"
+  launchUrl: "http://localhost:8080"
+  description: "My Store App Mobile App"
+  display: "standalone"
+  orientation: "portrait"
+  themeColor: "#6366f1"
+  navigationColor: "#6366f1"
+  backgroundColor: "#ffffff"
+  enableNotifications: true
+  useWideColorGamut: true
+  minSdkVersion: 21
+  targetSdkVersion: 33
+  host: "localhost:8080"
+  fallBackType: "customtabs"
+  packageId: "com.saeaa.store.c692ca44"
+  versionCode: 1
+  versionName: "1.0.0"
+  
+tooling:
+  bubblewrapVersion: 1
+  
+signingKey:
+  path: "./android.keystore"
+  alias: "android"
+  storePassword: "password"
+  keyPassword: "password"

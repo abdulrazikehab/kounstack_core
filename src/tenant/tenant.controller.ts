@@ -19,6 +19,27 @@ import { SetupMarketDto } from './dto/setup-market.dto';
 export class TenantController {
   private readonly logger = new Logger(TenantController.name);
 
+  private extractErrorMessage(error: unknown): string {
+    const value = (error as any)?.message ?? error;
+    if (typeof value === 'string' && value !== '[object Object]') return value;
+    if (Array.isArray(value)) {
+      return value.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join(', ');
+    }
+    if (value && typeof value === 'object') {
+      const maybeMessage = (value as any).message;
+      if (typeof maybeMessage === 'string' && maybeMessage !== '[object Object]') return maybeMessage;
+      if (Array.isArray(maybeMessage)) {
+        return maybeMessage.map((item: unknown) => (typeof item === 'string' ? item : JSON.stringify(item))).join(', ');
+      }
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return 'Unknown error';
+      }
+    }
+    return String(value || 'Unknown error');
+  }
+
   constructor(
     private readonly tenantService: TenantService,
     private readonly tenantSyncService: TenantSyncService,
@@ -195,7 +216,7 @@ export class TenantController {
       }
       
       // Check error message for specific cases
-      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      const errorMessage = this.extractErrorMessage(error);
       if (errorMessage.includes('Market limit reached')) {
         throw new ForbiddenException(errorMessage);
       }
@@ -448,7 +469,7 @@ export class TenantController {
       }
       
       // For unknown errors, wrap in BadRequestException
-      const errorMessage = error?.message || error?.toString() || 'Failed to create market. Please try again.';
+      const errorMessage = this.extractErrorMessage(error) || 'Failed to create market. Please try again.';
       throw new BadRequestException(errorMessage);
     }
   }

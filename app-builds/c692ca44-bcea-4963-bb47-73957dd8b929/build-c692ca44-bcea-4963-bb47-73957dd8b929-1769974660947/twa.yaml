@@ -1,0 +1,26 @@
+
+twaManifest:
+  packageId: com.saeaa.store.c692ca44
+  host: example.com
+  name: أسس
+  launcherName: أسس
+  display: standalone
+  themeColor: '#6366f1'
+  navigationColor: '#6366f1'
+  backgroundColor: '#ffffff'
+  startUrl: https://example.com/
+  iconUrl: http://127.0.0.1:3002/temp/icon-build-c692ca44-bcea-4963-bb47-73957dd8b929-1769974660947.png
+  maskableIconUrl: http://127.0.0.1:3002/temp/icon-build-c692ca44-bcea-4963-bb47-73957dd8b929-1769974660947.png
+  appVersion: 1.0.0
+  appVersionCode: 1
+  signingKey:
+    path: ./android.keystore
+    alias: android
+  generatorApp: bubblewrap-cli
+  webManifestUrl: http://localhost:8080/manifest.json
+  fallbackType: customtabs
+  features:
+    - locationDelegation:
+        enabled: true
+    - playBilling:
+        enabled: false

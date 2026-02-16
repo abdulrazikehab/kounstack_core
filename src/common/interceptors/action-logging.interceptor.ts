@@ -38,6 +38,12 @@ export class ActionLoggingInterceptor implements NestInterceptor {
           );
 
           if (isSuccess) {
+            const allowedRoles = new Set(['SUPER_ADMIN', 'SHOP_OWNER', 'STAFF', 'CUSTOMER']);
+            const resolvedUserRole =
+              typeof user?.role === 'string' && allowedRoles.has(user.role)
+                ? user.role
+                : 'STAFF';
+
             // Get tenantId and validate it exists (or set to undefined to avoid FK constraint violation)
             let tenantId: string | undefined = user?.tenantId || (request.headers['x-tenant-id'] as string) || undefined;
             
@@ -70,22 +76,26 @@ export class ActionLoggingInterceptor implements NestInterceptor {
             
             await this.prisma.auditLog.create({
               data: {
-                userId: user?.id || user?.sub || undefined,
-                tenantId: tenantId,
+                // AuditLog.userId is required in current schema.
+                // Use request user when available, otherwise fall back to a system marker.
+                userId: user?.id || user?.userId || 'system',
                 action: `${method} ${url.split('?')[0]}`,
-                resourceType: this.getResourceType(url),
+                resource: this.getResourceType(url),
                 resourceId: params?.id || query?.id || body?.id || undefined,
-                oldValues: null,
-                newValues: JSON.stringify({ body, query, params }),
                 ipAddress,
                 userAgent,
-                metadata: JSON.stringify({
+                changes: {
+                  body,
+                  query,
+                  params,
                   method,
                   url,
                   responseType: typeof response,
                   userEmail: user?.email,
                   userName: user?.name,
-                }),
+                  tenantId,
+                },
+                userRole: resolvedUserRole,
               },
             });
           }

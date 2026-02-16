@@ -45,6 +45,35 @@ export class TenantMiddleware implements NestMiddleware {
       }
     }
 
+    // Method 2.5: Infer tenant from Origin/Referer host for localhost API calls.
+    // This covers cases where frontend requests omit X-Tenant-Domain but are sent
+    // from subdomain contexts like testico.localhost:8080 -> localhost:3002.
+    if (!tenantId) {
+      const apiHost = (req.headers.host || '').toLowerCase();
+      const isLocalApiHost =
+        apiHost.startsWith('localhost') ||
+        apiHost.startsWith('127.0.0.1') ||
+        apiHost.endsWith('.localhost:3002');
+
+      if (isLocalApiHost) {
+        const origin = (req.headers.origin as string | undefined) || '';
+        const referer = (req.headers.referer as string | undefined) || '';
+        const sourceUrl = origin || referer;
+
+        if (sourceUrl) {
+          try {
+            const sourceHost = new URL(sourceUrl).hostname;
+            tenantId = await this.resolveTenantFromDomain(sourceHost);
+            if (tenantId) {
+              detectedFrom = `origin:${sourceHost}`;
+            }
+          } catch {
+            // Ignore malformed origin/referer and continue with other methods.
+          }
+        }
+      }
+    }
+
     // Method 3: Explicit tenant ID header from frontend (Fallback/Dashboard usage)
     if (!tenantId) {
       const headerTenantId = req.headers['x-tenant-id'] as string | undefined;
@@ -146,15 +175,23 @@ export class TenantMiddleware implements NestMiddleware {
     // Dynamic Domain Resolution
     const platformDomain = this.configService.get<string>('PLATFORM_DOMAIN') || 'kounworld.com';
     const secondaryDomain = this.configService.get<string>('PLATFORM_SECONDARY_DOMAIN') || 'saeaa.net';
+    const secondaryDomainAliases = Array.from(
+      new Set([
+        secondaryDomain,
+        // Local/dev setups often use saeaa.com even when env secondary is saeaa.net.
+        // Accept both to avoid losing tenant context.
+        'saeaa.com',
+      ]),
+    );
     
     // Handle main domains - should NOT be treated as subdomain
     const mainDomains = [
       platformDomain,
       `www.${platformDomain}`,
       `app.${platformDomain}`,
-      secondaryDomain,
-      `www.${secondaryDomain}`,
-      `app.${secondaryDomain}`,
+      ...secondaryDomainAliases,
+      ...secondaryDomainAliases.map((domain) => `www.${domain}`),
+      ...secondaryDomainAliases.map((domain) => `app.${domain}`),
       'kawn.com',
       'www.kawn.com',
       'kawn.net',
@@ -175,11 +212,13 @@ export class TenantMiddleware implements NestMiddleware {
       }
     }
     
-    // Handle subdomains of the configured secondary domain
-    if (normalizedHostname.endsWith(`.${secondaryDomain}`)) {
-      const subdomain = normalizedHostname.replace(`.${secondaryDomain}`, '');
-      if (subdomain && subdomain !== 'www' && subdomain !== 'app') {
-        return subdomain;
+    // Handle subdomains of the configured secondary domains/aliases
+    for (const domain of secondaryDomainAliases) {
+      if (normalizedHostname.endsWith(`.${domain}`)) {
+        const subdomain = normalizedHostname.replace(`.${domain}`, '');
+        if (subdomain && subdomain !== 'www' && subdomain !== 'app') {
+          return subdomain;
+        }
       }
     }
 
@@ -203,9 +242,11 @@ export class TenantMiddleware implements NestMiddleware {
     const platformDomains = [
       platformDomain, `app.${platformDomain}`, 
       secondaryDomain, `app.${secondaryDomain}`,
+      'saeaa.com', 'app.saeaa.com',
       "koun.com", "app.koun.com", "koun.net", "app.koun.net", 
       "kawn.com", "app.kawn.com", "kawn.net", "app.kawn.net", 
-      "kounworld.com", "app.kounworld.com", "saeaa.net", "app.saeaa.net", 
+      "kounworld.com", "app.kounworld.com", "saeaa.net", "app.saeaa.net",
+      "www.saeaa.com", "www.saeaa.net",
       "saa'ah.com", "app.saa'ah.com"
     ]; 
     for (const domain of platformDomains) {

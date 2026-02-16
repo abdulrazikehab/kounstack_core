@@ -1960,24 +1960,38 @@ export class CustomersService {
    */
   private async sendSMSOTP(phone: string, code: string, tenantId: string): Promise<boolean> {
     const coreApiUrl = process.env.CORE_API_URL || 'http://localhost:3002';
-    try {
-      this.logger.log(' Attempting to send SMS OTP to ' + phone + ' for tenant ' + tenantId);
-      
-      const payload = {
-        tenantId,
-        to: phone,
-        message: 'Your verification code for ' + (process.env.PLATFORM_NAME || 'Saeaa') + ' is: ' + code,
-        messageAr: 'رمز التحقق الخاص بك لـ ' + (process.env.PLATFORM_NAME_AR || 'سعة') + ' هو: ' + code,
-      };
+    const baseUrl = coreApiUrl.replace(/\/+$/, '');
+    const smsEndpoints = baseUrl.endsWith('/api')
+      ? [`${baseUrl}/notifications/sms`]
+      : [`${baseUrl}/api/notifications/sms`, `${baseUrl}/notifications/sms`];
 
-      await firstValueFrom(
-        this.httpService.post(coreApiUrl + '/api/notifications/sms', payload)
-      );
-      
-      return true;
-    } catch (error: any) {
-      this.logger.error(' SMS OTP delivery failed: ' + error.message);
-      return false;
+    this.logger.log(' Attempting to send SMS OTP to ' + phone + ' for tenant ' + tenantId);
+
+    const payload = {
+      tenantId,
+      to: phone,
+      message: 'Your verification code for ' + (process.env.PLATFORM_NAME || 'Saeaa') + ' is: ' + code,
+      messageAr: 'رمز التحقق الخاص بك لـ ' + (process.env.PLATFORM_NAME_AR || 'سعة') + ' هو: ' + code,
+    };
+
+    for (const endpoint of smsEndpoints) {
+      try {
+        const response = await firstValueFrom(this.httpService.post(endpoint, payload));
+        const responseData = response?.data;
+        const accepted =
+          response?.status >= 200 &&
+          response?.status < 300 &&
+          responseData !== false &&
+          responseData?.success !== false;
+
+        if (accepted) {
+          return true;
+        }
+      } catch (error: any) {
+        this.logger.error(' SMS OTP delivery failed via ' + endpoint + ': ' + error.message);
+      }
     }
+
+    return false;
   }
 }

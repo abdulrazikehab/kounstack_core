@@ -35,7 +35,7 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
     
     // Set global prefix to match Nginx proxy and frontend expectations
-    app.setGlobalPrefix('auth');
+    app.setGlobalPrefix('api');
     
     // CRITICAL: Enable CORS FIRST before any other middleware to prevent duplicate headers
     // Enable CORS with proper origin handling to prevent duplicate headers
@@ -339,9 +339,9 @@ async function bootstrap() {
 
     // Exception filter is now registered in app.module.ts via APP_FILTER
     
-    const port = process.env.CORE_PORT || 3001;
+    const port = process.env.CORE_PORT || 3002;
     await app.listen(port,'0.0.0.0');
-    logger.log(`✅ Auth service running on port ${port}`);
+    logger.log(`✅ Core API service running on port ${port}`);
   } catch (error) {
     logger.error('Failed to start auth service:', error);
     process.exit(1);

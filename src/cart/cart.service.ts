@@ -4,7 +4,7 @@ import { RedisService } from '../redis/redis.service';
 import { CouponService } from '../coupon/coupon.service';
 import { TaxService } from '../tax/tax.service';
 import { ShippingService } from '../shipping/shipping.service';
-import { CouponType } from '@prisma/client';
+// CouponType enum is not available in this Prisma schema; use string literal comparison instead.
 
 @Injectable()
 export class CartService {
@@ -826,7 +826,7 @@ export class CartService {
     if (cart.couponCode && this.couponService) {
       try {
         const coupon = await this.couponService.findByCode(cart.tenantId, cart.couponCode);
-        if (coupon?.type === CouponType.FREE_SHIPPING) {
+        if (coupon?.type === 'FREE_SHIPPING') {
           hasFreeShipping = true;
         }
       } catch (error) {

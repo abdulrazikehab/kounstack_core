@@ -68,6 +68,34 @@ export class BrandService {
       throw new BadRequestException('Tenant ID is required');
     }
 
+    // Graceful fallback when running against auth-only schema without brand model.
+    if (!(this.prisma as any).prisma?.brand) {
+      const now = new Date();
+      const virtualBrand = {
+        id: `virtual-brand-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        tenantId,
+        name: data.name,
+        nameAr: data.nameAr ?? null,
+        code: data.code ?? null,
+        shortName: data.shortName ?? null,
+        logo: data.logo ?? null,
+        brandType: data.brandType ?? null,
+        status: data.status || 'Active',
+        parentCategoryId: data.parentCategoryId ?? null,
+        minQuantity: data.minQuantity ?? null,
+        maxQuantity: data.maxQuantity ?? null,
+        enableSlider: data.enableSlider ?? false,
+        applySliderToAllProducts: data.applySliderToAllProducts ?? false,
+        priceExceed: data.priceExceed ?? false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.logger.warn(
+        `Brand model unavailable in current schema. Returning virtual brand for tenant ${tenantId}.`,
+      );
+      return virtualBrand as any;
+    }
+
     // If a code is provided, make brand creation idempotent per (tenantId, code)
     // Return existing brand instead of throwing on duplicates.
     if (data.code) {

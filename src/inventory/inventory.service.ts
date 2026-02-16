@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { InventoryType, EntityType, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { CreateEmergencyItemDto } from './dto/create-emergency-item.dto';
-import { BulkUpdateVisibilityDto } from './dto/update-visibility.dto';
+import { BulkUpdateVisibilityDto, InventoryType, EntityType } from './dto/update-visibility.dto';
 
 @Injectable()
 export class InventoryService {

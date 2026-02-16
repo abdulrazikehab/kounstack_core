@@ -14,9 +14,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { BitaqatyBusinessService } from './integrations/bitaqaty-business.service';
 import { SupplierAdapterFactory } from './integrations/supplier-adapter.factory';
 import { SupplierHubClient } from './integrations/supplier-hub.client';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, HttpModule],
+  imports: [PrismaModule, HttpModule, AuthModule],
   controllers: [SupplierController, SupplierManagementController, SupplierApiController, SupplierProductsController],
   providers: [
     SupplierInventoryService,

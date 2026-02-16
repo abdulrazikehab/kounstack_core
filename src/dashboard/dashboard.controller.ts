@@ -7,6 +7,7 @@ import { SiteConfigService } from '../site-config/site-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PageService } from '../page/page.service';
 import { Public } from '../auth/public.decorator';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * Dashboard controller for tenant statistics and configuration
@@ -21,7 +22,25 @@ export class DashboardController {
     private readonly prisma: PrismaService,
     private readonly pageService: PageService,
     private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
   ) {}
+
+  private resolveAuthServiceUrl(): string {
+    const configuredUrl =
+      this.configService.get<string>('AUTH_API_URL') ||
+      this.configService.get<string>('AUTH_SERVICE_URL');
+    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+    const defaultLocalUrl = 'http://localhost:3001';
+
+    if (!isProduction && configuredUrl && !/localhost|127\.0\.0\.1/i.test(configuredUrl)) {
+      this.logger.warn(
+        `Auth service URL points to non-local host in development (${configuredUrl}). Using ${defaultLocalUrl}.`,
+      );
+      return defaultLocalUrl;
+    }
+
+    return (configuredUrl || defaultLocalUrl).replace(/\/api$/i, '').replace(/\/+$/, '');
+  }
 
   /**
    * Get dashboard statistics for the tenant
@@ -95,13 +114,7 @@ export class DashboardController {
     // 1. Fetch customers from auth service (Customer table)
     let authCustomers: any[] = [];
     try {
-      // Auth service URL - check if it needs /api prefix
-      let authBaseUrl = (process.env.AUTH_API_URL || process.env.AUTH_SERVICE_URL || 'http://localhost:3001').replace(/\/+$/, '');
-      // If URL doesn't end with /api, check if we need to add it
-      if (!authBaseUrl.includes('/api') && !authBaseUrl.includes('localhost:3001')) {
-        // For production URLs, might need /api prefix
-        authBaseUrl = `${authBaseUrl}/api`;
-      }
+      const authBaseUrl = this.resolveAuthServiceUrl();
       
       // Get token from request - try multiple sources
       const token = req.headers.authorization?.replace('Bearer ', '') || 

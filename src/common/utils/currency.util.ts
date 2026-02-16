@@ -20,21 +20,8 @@ export async function getDefaultCurrency(
       return currencySettings.baseCurrency;
     }
 
-    // Fallback to tenant.settings.currency (from Settings page)
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { settings: true },
-    });
-
-    if (tenant?.settings) {
-      const settings = tenant.settings as Record<string, unknown>;
-      const currency = settings.currency as string | undefined;
-      if (currency) {
-        return currency;
-      }
-    }
-
-    return 'SAR'; // Default fallback
+    // Fallback to a safe default when no CurrencySettings row exists
+    return 'SAR';
   } catch (error) {
     // SECURITY FIX: Use logger instead of console.error
     // This is a utility function - errors are handled gracefully

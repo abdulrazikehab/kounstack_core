@@ -725,7 +725,8 @@ export class StaffService {
     try {
       await this.prismaService.auditLog.create({
         data: {
-          userId,
+          // Staff user lives in auth DB; avoid FK violations in core DB.
+          userId: null,
           tenantId,
           action,
           resourceId,

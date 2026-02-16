@@ -81,30 +81,34 @@ export class SiteConfigService {
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { 
-        settings: true,
-        subdomain: true,
+      select: {
+        id: true,
         name: true,
         nameAr: true,
         description: true,
         descriptionAr: true,
+        subdomain: true,
+        settings: true,
         storeType: true,
+        plan: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         isPrivateStore: true,
         customerRegistrationRequestEnabled: true,
-      }
+      },
     });
-
-    const tenantSettings = (tenant?.settings || {}) as Record<string, unknown>;
+    const tenantSettings: Record<string, unknown> =
+      ((tenant?.settings as Record<string, unknown> | null) || {});
     
-    // Fetch currency settings (source of truth for base currency)
+    // Fetch currency settings (source of truth for base currency) if model exists
     const currencySettings = await this.prisma.currencySettings.findUnique({
       where: { tenantId },
     });
-    
-    // Determine currency: CurrencySettings.baseCurrency > tenant.settings.currency > 'SAR'
-    const baseCurrency = currencySettings?.baseCurrency 
-      || (tenantSettings.currency as string)?.toUpperCase()
-      || 'SAR';
+
+    // Determine currency: CurrencySettings.baseCurrency > default 'SAR'
+    const baseCurrency =
+      (currencySettings as any)?.baseCurrency?.toUpperCase?.() || 'SAR';
     
     // If previewing a theme, fetch its draft settings
     let previewThemeSettings = {};

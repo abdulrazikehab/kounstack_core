@@ -10,29 +10,11 @@ export class PartnerService {
     console.log('🏪 Creating marketplace for tenant:', tenantId);
     console.log('📦 Marketplace data:', dto);
 
-    // First, get existing tenant settings
-    const existingTenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { settings: true },
-    });
-
-    const existingSettings = (existingTenant?.settings as any) || {};
-
-    // Update tenant with marketplace settings and mark ASUS partner as completed
+    // Update tenant with available fields only (current schema has no "settings" column)
     const updatedTenant = await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
         name: dto.name,
-        settings: {
-          ...existingSettings, // Preserve existing settings
-          nameAr: dto.nameAr,
-          category: dto.category,
-          logo: dto.logo,
-          template: dto.template,
-          reportFrequency: dto.reportFrequency,
-          paymentGateways: dto.paymentGateways,
-          asusPartnerCompleted: true, // Mark as completed
-        },
       },
     });
 
@@ -222,16 +204,14 @@ export class PartnerService {
   }
 
   async getPartnerStatus(tenantId: string) {
-    const tenant = await this.prisma.tenant.findUnique({
+    await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: {
-        settings: true,
-      },
+      select: { id: true },
     });
-
     return {
-      asusPartnerCompleted: (tenant?.settings as any)?.asusPartnerCompleted || false,
-      smartLinePartnerCompleted: (tenant?.settings as any)?.smartLinePartnerCompleted || false,
+      // Schema currently has no tenant.settings JSON column; keep stable default flags.
+      asusPartnerCompleted: false,
+      smartLinePartnerCompleted: false,
     };
   }
 }

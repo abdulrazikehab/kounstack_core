@@ -9,9 +9,10 @@ import { PaymentModule } from '../payment/payment.module';
 
 import { TenantModule } from '../tenant/tenant.module';
 import { AppBuilderModule } from '../app-builder/app-builder.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PageModule, PaymentModule, HttpModule, TenantModule, AppBuilderModule],
+  imports: [PageModule, PaymentModule, HttpModule, TenantModule, AppBuilderModule, AuthModule],
   controllers: [SiteConfigController],
   providers: [SiteConfigService, PrismaService],
   exports: [SiteConfigService],

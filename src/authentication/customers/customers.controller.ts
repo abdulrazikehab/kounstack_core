@@ -19,6 +19,9 @@ import {
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../guard/jwt-auth.guard';
 import { CustomersService, CreateCustomerDto, UpdateCustomerDto } from './customers.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -30,7 +33,26 @@ export class CustomersController {
   constructor(
     private readonly customersService: CustomersService,
     private readonly prisma: PrismaService,
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
   ) {}
+
+  private resolveAuthServiceUrl(): string {
+    const configuredUrl =
+      this.configService.get<string>('AUTH_API_URL') ||
+      this.configService.get<string>('AUTH_SERVICE_URL');
+    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+    const defaultLocalUrl = 'http://localhost:3001';
+
+    if (!isProduction && configuredUrl && !/localhost|127\.0\.0\.1/i.test(configuredUrl)) {
+      this.logger.warn(
+        `Auth service URL points to non-local host in development (${configuredUrl}). Using ${defaultLocalUrl}.`,
+      );
+      return defaultLocalUrl;
+    }
+
+    return (configuredUrl || defaultLocalUrl).replace(/\/api$/i, '').replace(/\/+$/, '');
+  }
 
   /**
    * Public endpoint for customer signup (storefront users)
@@ -336,70 +358,31 @@ export class CustomersController {
     @Request() req: any,
     @Body() createCustomerDto: CreateCustomerDto,
   ) {
-    // Extract subdomain from request headers, JWT token, or hostname for invite URL
-    let subdomain: string | undefined;
-    let port: string | undefined;
-    
-    // Priority 1: Try to get subdomain and port from X-Tenant-Domain header (from frontend)
-    const tenantDomainHeader = req.headers['x-tenant-domain'] as string;
-    if (tenantDomainHeader) {
-      // Extract subdomain and port from domain (e.g., "store.localhost:8080" -> "store" and "8080")
-      const domainParts = tenantDomainHeader.split(':');
-      const domainWithoutPort = domainParts[0];
-      
-      // Extract port if present
-      if (domainParts.length > 1) {
-        port = domainParts[1];
-      }
-      
-      // Extract subdomain from domain
-      if (domainWithoutPort.includes('.localhost')) {
-        subdomain = domainWithoutPort.split('.localhost')[0];
-      } else if (domainWithoutPort.endsWith('.kawn.com') || domainWithoutPort.endsWith('.kawn.net')) {
-        const parts = domainWithoutPort.split('.');
-        if (parts.length > 2 && parts[0] !== 'www' && parts[0] !== 'app') {
-          subdomain = parts[0];
-        }
-      } else {
-        // Try to extract subdomain from the first part
-        const parts = domainWithoutPort.split('.');
-        if (parts.length > 0 && parts[0] && parts[0] !== 'localhost' && parts[0] !== 'www' && parts[0] !== 'app') {
-          subdomain = parts[0];
-        }
-      }
-      
-      this.logger.log(`📧 Extracted from X-Tenant-Domain header: subdomain=${subdomain}, port=${port}`);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers: Record<string, string> = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+
+    if (req.headers['x-tenant-domain']) {
+      headers['x-tenant-domain'] = req.headers['x-tenant-domain'] as string;
     }
-    
-    // Priority 2: Try to get subdomain from JWT token (user.tenantSubdomain)
-    if (!subdomain && req.user?.tenantSubdomain) {
-      subdomain = req.user.tenantSubdomain;
-    }
-    
-    // Priority 3: Try to extract from hostname (only if it's a subdomain, not the auth service)
-    if (!subdomain) {
-      const hostname = req.headers.host || '';
-      const hostParts = hostname.split(':');
-      const cleanHostname = hostParts[0];
-      
-      // Extract port if present
-      if (hostParts.length > 1) {
-        port = hostParts[1];
+
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.post(`${authUrl}/auth/customers`, createCustomerDto, { headers }),
+      );
+
+      // Unwrap app-auth response when transform interceptor wraps payload.
+      if (data && data.success && data.data) {
+        return data.data;
       }
-      
-      // Only extract subdomain if it's actually a subdomain (not localhost:3001 or similar)
-      if (cleanHostname.includes('.localhost')) {
-        subdomain = cleanHostname.split('.localhost')[0];
-      } else if (cleanHostname.endsWith('.kawn.com') || cleanHostname.endsWith('.kawn.net')) {
-        const parts = cleanHostname.split('.');
-        if (parts.length > 2 && parts[0] !== 'www' && parts[0] !== 'app') {
-          subdomain = parts[0];
-        }
-      }
+
+      return data?.data || data;
+    } catch (error: any) {
+      this.logger.error(`Failed to create customer via auth service: ${error?.message}`);
+      throw new BadRequestException(error?.response?.data?.message || 'Failed to create customer');
     }
-    
-    // Note: If subdomain is still not found, it will be extracted from tenant record in service
-    return this.customersService.createCustomer(req.user.tenantId, createCustomerDto, subdomain, port);
   }
 
   @Get()

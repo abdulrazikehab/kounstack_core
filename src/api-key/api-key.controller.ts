@@ -14,7 +14,7 @@ import {
 import { ApiKeyService } from './api-key.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { UpdateApiKeyDto } from './dto/update-api-key.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../authentication/guard/jwt-auth.guard';
 import { AuthenticatedRequest } from '../types/request.types';
 
 @Controller('api-keys')

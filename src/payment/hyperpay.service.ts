@@ -29,11 +29,16 @@ export class HyperPayService implements OnModuleInit {
         'Set this environment variable before processing production payments.'
       );
     } else if (secret.length < 32) {
-      this.logger.error(
+      const msg =
         `❌ HYPERPAY_WEBHOOK_SECRET is too weak (${secret.length} chars). ` +
         'Minimum 32 characters required for secure HMAC verification. ' +
-        'Please generate a stronger secret.'
-      );
+        'Please generate a stronger secret.';
+      if (process.env.NODE_ENV === 'production') {
+        this.logger.error(msg);
+      } else {
+        // In non-production, downgrade to warning to avoid noisy local logs.
+        this.logger.warn(msg);
+      }
     } else {
       this.logger.log('✅ HYPERPAY_WEBHOOK_SECRET configured correctly');
     }

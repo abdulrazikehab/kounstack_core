@@ -4,6 +4,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { CardsModule } from '../cards/cards.module';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { UserModule } from '../user/user.module';
+import { AuthModule } from '../auth/auth.module';
 
 // Services
 import { MerchantService } from './services/merchant.service';
@@ -43,7 +44,7 @@ import { MerchantSyncController } from './controllers/merchant-sync.controller';
 import { MerchantSearchController } from './controllers/merchant-search.controller';
 
 @Module({
-  imports: [PrismaModule, CardsModule, CloudinaryModule, UserModule, HttpModule],
+  imports: [PrismaModule, CardsModule, CloudinaryModule, UserModule, HttpModule, AuthModule],
   controllers: [
     MerchantAuthController,
     MerchantProfileController,

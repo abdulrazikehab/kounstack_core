@@ -7,16 +7,32 @@ import { templateSeeds } from './seeds/template-seed';
 export class TemplateService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
 
+  private getTemplateDelegate() {
+    const delegate = (this.prisma as any).template;
+    if (!delegate) {
+      throw new Error(
+        'Prisma model "template" is not available in the current Prisma client.',
+      );
+    }
+    return delegate;
+  }
+
   async onModuleInit() {
-    // Always reseed templates if count doesn't match (added or removed templates)
-    const count = await this.prisma.template.count({ where: { isDefault: true } });
-    const expectedCount = templateSeeds.length;
-    
-    if (count !== expectedCount) {
-      console.log(`🌱 Found ${count} templates but expected ${expectedCount}, reseeding...`);
-      await this.seedTemplates();
-    } else {
-      console.log(`✅ Found ${count} default templates in database`);
+    try {
+      // Always reseed templates if count doesn't match (added or removed templates)
+      const templateModel = this.getTemplateDelegate();
+      const count = await templateModel.count({ where: { isDefault: true } });
+      const expectedCount = templateSeeds.length;
+
+      if (count !== expectedCount) {
+        console.log(`🌱 Found ${count} templates but expected ${expectedCount}, reseeding...`);
+        await this.seedTemplates();
+      } else {
+        console.log(`✅ Found ${count} default templates in database`);
+      }
+    } catch (error: any) {
+      // Do not crash app startup if template model is missing in current Prisma client.
+      console.warn(`⚠️ Template seeding skipped: ${error?.message || error}`);
     }
   }
 
@@ -24,14 +40,15 @@ export class TemplateService implements OnModuleInit {
     console.log('🌱 Seeding templates...');
     try {
       // Clear existing default templates first
-      await this.prisma.template.deleteMany({
+      const templateModel = this.getTemplateDelegate();
+      await templateModel.deleteMany({
         where: { isDefault: true },
       });
       console.log('🗑️  Cleared existing default templates');
       
       // Seed new templates
       for (const template of templateSeeds) {
-        await this.prisma.template.create({
+        await templateModel.create({
           data: template,
         });
       }
@@ -43,6 +60,7 @@ export class TemplateService implements OnModuleInit {
   }
 
   async findAll(filter?: TemplateFilterDto) {
+    const templateModel = this.getTemplateDelegate();
     const where: any = {};
     
     if (filter?.category) {
@@ -60,7 +78,7 @@ export class TemplateService implements OnModuleInit {
       ];
     }
 
-    return this.prisma.template.findMany({
+    return templateModel.findMany({
       where,
       orderBy: [
         { isDefault: 'desc' },
@@ -70,7 +88,8 @@ export class TemplateService implements OnModuleInit {
   }
 
   async findOne(id: string) {
-    const template = await this.prisma.template.findUnique({
+    const templateModel = this.getTemplateDelegate();
+    const template = await templateModel.findUnique({
       where: { id },
     });
 
@@ -82,7 +101,8 @@ export class TemplateService implements OnModuleInit {
   }
 
   async create(data: CreateTemplateDto) {
-    return this.prisma.template.create({
+    const templateModel = this.getTemplateDelegate();
+    return templateModel.create({
       data: {
         ...data,
         isDefault: data.isDefault || false,
@@ -92,8 +112,9 @@ export class TemplateService implements OnModuleInit {
 
   async update(id: string, data: Partial<CreateTemplateDto>) {
     await this.findOne(id); // Verify exists
-    
-    return this.prisma.template.update({
+
+    const templateModel = this.getTemplateDelegate();
+    return templateModel.update({
       where: { id },
       data,
     });
@@ -101,8 +122,9 @@ export class TemplateService implements OnModuleInit {
 
   async delete(id: string) {
     await this.findOne(id); // Verify exists
-    
-    return this.prisma.template.delete({
+
+    const templateModel = this.getTemplateDelegate();
+    return templateModel.delete({
       where: { id },
     });
   }

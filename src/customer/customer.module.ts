@@ -6,9 +6,10 @@ import { UserModule } from '../user/user.module';
 import { CardsModule } from '../cards/cards.module';
 import { OrderModule } from '../order/order.module';
 import { MerchantModule } from '../merchant/merchant.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [UserModule, CardsModule, OrderModule, MerchantModule],
+  imports: [UserModule, CardsModule, OrderModule, MerchantModule, AuthModule],
   controllers: [CustomerInventoryController],
   providers: [CustomerInventoryService],
   exports: [CustomerInventoryService],

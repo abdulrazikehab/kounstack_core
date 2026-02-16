@@ -1,0 +1,20 @@
+{
+  "packageId": "com.saeaa.store.c692ca44",
+  "host": "localhost:8080",
+  "name": "أسس",
+  "launcherName": "أسس",
+  "display": "standalone",
+  "themeColor": "#6366f1",
+  "navigationColor": "#6366f1",
+  "backgroundColor": "#ffffff",
+  "startUrl": "/",
+  "iconUrl": "https://res.cloudinary.com/purplecards/image/upload/v1769543420/tenants/c692ca44-bcea-4963-bb47-73957dd8b929/products/gwdhgtnjdxvvgbumy2er.png",
+  "maskableIconUrl": "https://res.cloudinary.com/purplecards/image/upload/v1769543420/tenants/c692ca44-bcea-4963-bb47-73957dd8b929/products/gwdhgtnjdxvvgbumy2er.png",
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "generatorApp": "bubblewrap-cli"
+}

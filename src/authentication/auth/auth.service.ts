@@ -1,4 +1,4 @@
-﻿import { Injectable, UnauthorizedException, ConflictException, BadRequestException, ForbiddenException, Logger, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+﻿import { Injectable, UnauthorizedException, ConflictException, BadRequestException, ForbiddenException, Logger, NotFoundException, InternalServerErrorException, TooManyRequestsException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -691,20 +691,22 @@ export class AuthService {
       throw new BadRequestException('Pending signup not found. Please start signup again.');
     }
 
-    // Check rate limiting - Use IP if available, fallback to email
+    // Check rate limiting - Use IP if available, fallback to email.
+    // Keep resend requests in a dedicated bucket so normal signup attempts do not block resend.
     const rateLimitingKey = ipAddress && ipAddress !== 'unknown' ? ipAddress : normalizedEmail;
+    const resendRateLimitingKey = `${rateLimitingKey}:verification_resend`;
     
     const signupConfig = this.rateLimitingService.getSignupConfig();
     const rateLimitCheck = await this.rateLimitingService.checkRateLimit(
-      rateLimitingKey,
+      resendRateLimitingKey,
       'REGISTRATION',
       signupConfig.maxAttempts,
       signupConfig.windowMs
     );
 
     if (!rateLimitCheck.allowed) {
-      this.logger.warn(`🚩 Rate limit exceeded for verification resend: ${normalizedEmail}, Key: ${rateLimitingKey}`);
-      throw new ForbiddenException(`Too many verification code requests. Please try again after ${Math.ceil((rateLimitCheck.resetTime.getTime() - Date.now()) / 60000)} minutes.`);
+      this.logger.warn(`🚩 Rate limit exceeded for verification resend: ${normalizedEmail}, Key: ${resendRateLimitingKey}`);
+      throw new TooManyRequestsException(`Too many verification code requests. Please try again after ${Math.ceil((rateLimitCheck.resetTime.getTime() - Date.now()) / 60000)} minutes.`);
     }
 
     // Mark old code as used
@@ -794,31 +796,47 @@ export class AuthService {
 
   private async sendSMSOTP(phone: string, code: string): Promise<boolean> {
     const coreApiUrl = process.env.CORE_API_URL || 'http://localhost:3002';
-    try {
-      this.logger.log(`📲 Attempting to send SMS OTP to ${phone} via Core API`);
-      this.logger.log(`📲 Core API URL: ${coreApiUrl} (configured via CORE_API_URL env var)`);
-      this.logger.log(`📲 Full Endpoint: ${coreApiUrl}/api/notifications/sms`);
-      
-      const payload = {
-        tenantId: 'merchant_signup',
-        to: phone,
-        message: 'Your verification code for ' + (process.env.PLATFORM_NAME || 'Saeaa') + ' is: ' + code,
-        messageAr: 'رمز التحقق الخاص بك لـ ' + (process.env.PLATFORM_NAME_AR || 'سعة') + ' هو: ' + code,
-      };
+    const baseUrl = coreApiUrl.replace(/\/+$/, '');
+    const smsEndpoints = baseUrl.endsWith('/api')
+      ? [`${baseUrl}/notifications/sms`]
+      : [`${baseUrl}/api/notifications/sms`, `${baseUrl}/notifications/sms`];
 
-      const response = await firstValueFrom(
-        this.httpService.post(coreApiUrl + '/api/notifications/sms', payload)
-      );
-      
-      this.logger.log(`✅ Core API response for SMS: ${response.status}`);
-      return true;
-    } catch (error: any) {
-      this.logger.error(`❌ SMS OTP delivery failed via ${coreApiUrl}: ${error.message}`);
-      if (error.response) {
-        this.logger.error(`❌ Response error data: ${JSON.stringify(error.response.data)}`);
+    this.logger.log(`📲 Attempting to send SMS OTP to ${phone} via Core API`);
+    this.logger.log(`📲 Core API URL: ${coreApiUrl} (configured via CORE_API_URL env var)`);
+
+    const payload = {
+      tenantId: 'merchant_signup',
+      to: phone,
+      message: 'Your verification code for ' + (process.env.PLATFORM_NAME || 'Saeaa') + ' is: ' + code,
+      messageAr: 'رمز التحقق الخاص بك لـ ' + (process.env.PLATFORM_NAME_AR || 'سعة') + ' هو: ' + code,
+    };
+
+    for (const endpoint of smsEndpoints) {
+      try {
+        this.logger.log(`📲 Trying SMS endpoint: ${endpoint}`);
+        const response = await firstValueFrom(this.httpService.post(endpoint, payload));
+        const responseData = response?.data;
+        const accepted =
+          response?.status >= 200 &&
+          response?.status < 300 &&
+          responseData !== false &&
+          responseData?.success !== false;
+
+        if (accepted) {
+          this.logger.log(`✅ Core API accepted SMS OTP request: ${response.status}`);
+          return true;
+        }
+
+        this.logger.warn(`⚠️ SMS endpoint responded but delivery was rejected: ${JSON.stringify(responseData)}`);
+      } catch (error: any) {
+        this.logger.error(`❌ SMS OTP delivery failed via ${endpoint}: ${error.message}`);
+        if (error.response) {
+          this.logger.error(`❌ Response error data: ${JSON.stringify(error.response.data)}`);
+        }
       }
-      return false;
     }
+
+    return false;
   }
 
   async login(loginDto: LoginDto, ipAddress?: string, userAgent?: string, fingerprint?: any, subdomain?: string | null, tenantDomain?: string | null): Promise<LoginResponseDto> {
@@ -2348,12 +2366,13 @@ export class AuthService {
 
     await this.prismaService.auditLog.create({
       data: {
-        userId,
+        // Auth DB userId does not exist in core DB; avoid FK violations.
+        userId: null,
         tenantId: tenantId || undefined,
         action,
         resourceId,
         resourceType,
-        oldValues: sanitize(oldValues), 
+        oldValues: sanitize(oldValues),
         newValues: sanitize(newValues),
         metadata: metadata ? JSON.stringify(metadata) : null,
         ipAddress,

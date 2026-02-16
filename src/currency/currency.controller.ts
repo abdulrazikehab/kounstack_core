@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, BadRequestException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, BadRequestException, Logger, Headers } from '@nestjs/common';
 import {
   CurrencyService,
   CreateCurrencyDto,
@@ -14,21 +14,43 @@ export class CurrencyController {
 
   constructor(private readonly currencyService: CurrencyService) {}
 
+  private resolveTenantId(req: AuthenticatedRequest, tenantIdHeader?: string): string {
+    const tenantId =
+      req.user?.tenantId ||
+      req.tenantId ||
+      tenantIdHeader ||
+      (req.headers?.['x-tenant-id'] as string | undefined);
+
+    if (!tenantId) {
+      this.logger.warn('Tenant ID missing in request', {
+        user: req.user,
+        requestTenantId: req.tenantId,
+        tenantIdHeader,
+      });
+      throw new BadRequestException('Tenant ID is required. Please ensure you are authenticated.');
+    }
+
+    return String(tenantId);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post()
-  async create(@Request() req: AuthenticatedRequest, @Body() data: CreateCurrencyDto) {
-    const tenantId = req.user.tenantId || req.user.id;
+  async create(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
+    @Body() data: CreateCurrencyDto,
+  ) {
+    const tenantId = this.resolveTenantId(req, tenantIdHeader);
     return this.currencyService.create(tenantId, data);
   }
 
   @Get()
-  async findAll(@Request() req: AuthenticatedRequest) {
+  async findAll(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader?: string,
+  ) {
     try {
-      const tenantId = req.user?.tenantId || req.tenantId || req.user?.id;
-      if (!tenantId) {
-        this.logger.warn('Tenant ID missing in request', { user: req.user });
-        throw new BadRequestException('Tenant ID is required. Please ensure you are authenticated.');
-      }
+      const tenantId = this.resolveTenantId(req, tenantIdHeader);
       return this.currencyService.findAll(tenantId);
     } catch (error: any) {
       this.logger.error('Error fetching currencies:', error);
@@ -41,13 +63,12 @@ export class CurrencyController {
 
   @UseGuards(JwtAuthGuard)
   @Post('initialize')
-  async initialize(@Request() req: AuthenticatedRequest) {
+  async initialize(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
+  ) {
     try {
-      const tenantId = req.user?.tenantId || req.tenantId || req.user?.id;
-      if (!tenantId) {
-        this.logger.warn('Tenant ID missing in request', { user: req.user });
-        throw new BadRequestException('Tenant ID is required. Please ensure you are authenticated.');
-      }
+      const tenantId = this.resolveTenantId(req, tenantIdHeader);
       await this.currencyService.initializeDefaultCurrencies(tenantId);
       return { message: 'Currencies initialized successfully', tenantId };
     } catch (error: any) {
@@ -60,13 +81,12 @@ export class CurrencyController {
   }
 
   @Get('settings')
-  async getSettings(@Request() req: AuthenticatedRequest) {
+  async getSettings(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
+  ) {
     try {
-      const tenantId = req.user?.tenantId || req.tenantId || req.user?.id;
-      if (!tenantId) {
-        this.logger.warn('Tenant ID missing in request', { user: req.user });
-        throw new BadRequestException('Tenant ID is required. Please ensure you are authenticated.');
-      }
+      const tenantId = this.resolveTenantId(req, tenantIdHeader);
       return this.currencyService.getSettings(tenantId);
     } catch (error: any) {
       this.logger.error('Error fetching currency settings:', error);
@@ -78,13 +98,12 @@ export class CurrencyController {
   }
 
   @Get('default')
-  async getDefault(@Request() req: AuthenticatedRequest) {
+  async getDefault(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
+  ) {
     try {
-      const tenantId = req.user?.tenantId || req.tenantId || req.user?.id;
-      if (!tenantId) {
-        this.logger.warn('Tenant ID missing in request', { user: req.user });
-        throw new BadRequestException('Tenant ID is required. Please ensure you are authenticated.');
-      }
+      const tenantId = this.resolveTenantId(req, tenantIdHeader);
       return this.currencyService.getDefaultCurrency(tenantId);
     } catch (error: any) {
       this.logger.error('Error fetching default currency:', error);
@@ -97,34 +116,44 @@ export class CurrencyController {
 
   @UseGuards(JwtAuthGuard)
   @Put('default/:code')
-  async setDefault(@Request() req: AuthenticatedRequest, @Param('code') code: string) {
-    const tenantId = req.user?.tenantId || req.user?.id;
-    if (!tenantId) {
-      throw new Error('Tenant ID is required');
-    }
+  async setDefault(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
+    @Param('code') code: string,
+  ) {
+    const tenantId = this.resolveTenantId(req, tenantIdHeader);
     return this.currencyService.setDefault(tenantId, code);
   }
 
   @UseGuards(JwtAuthGuard)
   @Put('settings')
-  async updateSettings(@Request() req: AuthenticatedRequest, @Body() data: UpdateCurrencySettingsDto) {
-    const tenantId = req.user.tenantId || req.user.id;
+  async updateSettings(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
+    @Body() data: UpdateCurrencySettingsDto,
+  ) {
+    const tenantId = this.resolveTenantId(req, tenantIdHeader);
     return this.currencyService.updateSettings(tenantId, data);
   }
 
   @UseGuards(JwtAuthGuard)
   @Put('rates')
-  async updateRates(@Request() req: AuthenticatedRequest, @Body() rates: Record<string, number>) {
-    const tenantId = req.user.tenantId || req.user.id;
+  async updateRates(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
+    @Body() rates: Record<string, number>,
+  ) {
+    const tenantId = this.resolveTenantId(req, tenantIdHeader);
     return this.currencyService.updateExchangeRates(tenantId, rates);
   }
 
   @Get(':code')
-  async findOne(@Request() req: AuthenticatedRequest, @Param('code') code: string) {
-    const tenantId = req.user?.tenantId || req.tenantId || req.user?.id;
-    if (!tenantId) {
-      throw new BadRequestException('Tenant ID is required');
-    }
+  async findOne(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
+    @Param('code') code: string,
+  ) {
+    const tenantId = this.resolveTenantId(req, tenantIdHeader);
     return this.currencyService.findOne(tenantId, code);
   }
 
@@ -132,17 +161,22 @@ export class CurrencyController {
   @Put(':code')
   async update(
     @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
     @Param('code') code: string,
     @Body() data: UpdateCurrencyDto,
   ) {
-    const tenantId = req.user.tenantId || req.user.id;
+    const tenantId = this.resolveTenantId(req, tenantIdHeader);
     return this.currencyService.update(tenantId, code, data);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':code')
-  async remove(@Request() req: AuthenticatedRequest, @Param('code') code: string) {
-    const tenantId = req.user.tenantId || req.user.id;
+  async remove(
+    @Request() req: AuthenticatedRequest,
+    @Headers('x-tenant-id') tenantIdHeader: string | undefined,
+    @Param('code') code: string,
+  ) {
+    const tenantId = this.resolveTenantId(req, tenantIdHeader);
     return this.currencyService.remove(tenantId, code);
   }
 }

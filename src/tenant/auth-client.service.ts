@@ -7,7 +7,45 @@ export class AuthClientService {
   private readonly authServiceUrl: string;
 
   constructor(private configService: ConfigService) {
-    this.authServiceUrl = this.configService.get('AUTH_SERVICE_URL') || 'http://localhost:3001';
+    const configuredUrl = this.configService.get<string>('AUTH_SERVICE_URL');
+    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+    const defaultLocalUrl = 'http://localhost:3001';
+
+    // In local development we must talk to local app-auth to avoid user/token mismatch
+    // with remote environments (which causes "User no longer exists" during setup).
+    if (!isProduction && configuredUrl && !/localhost|127\.0\.0\.1/i.test(configuredUrl)) {
+      this.logger.warn(
+        `AUTH_SERVICE_URL points to non-local host in development (${configuredUrl}). ` +
+        `Using ${defaultLocalUrl} for local auth consistency.`,
+      );
+      this.authServiceUrl = defaultLocalUrl;
+    } else {
+      this.authServiceUrl = configuredUrl || defaultLocalUrl;
+    }
+  }
+
+  private stringifyErrorPayload(payload: unknown): string {
+    if (typeof payload === 'string') return payload;
+    if (Array.isArray(payload)) {
+      return payload
+        .map((item) => (typeof item === 'string' ? item : JSON.stringify(item)))
+        .join(', ');
+    }
+    if (payload && typeof payload === 'object') {
+      const maybeMessage = (payload as { message?: unknown }).message;
+      if (typeof maybeMessage === 'string') return maybeMessage;
+      if (Array.isArray(maybeMessage)) {
+        return maybeMessage
+          .map((item) => (typeof item === 'string' ? item : JSON.stringify(item)))
+          .join(', ');
+      }
+      try {
+        return JSON.stringify(payload);
+      } catch {
+        return '[unserializable error payload]';
+      }
+    }
+    return String(payload);
   }
 
   async checkCanCreateMarket(userId: string, accessToken: string): Promise<{ allowed: boolean; currentCount: number; limit: number }> {
@@ -68,7 +106,7 @@ export class AuthClientService {
         let errorMessage = `Auth service returned ${response.status}`;
         try {
           const errorData = await response.json() as any;
-          errorMessage = errorData.message || errorData.error || errorMessage;
+          errorMessage = this.stringifyErrorPayload(errorData?.message ?? errorData?.error ?? errorData);
           
           if (response.status === 409) {
             throw new Error(`Conflict: ${errorMessage}`);
@@ -78,7 +116,7 @@ export class AuthClientService {
           // If JSON parsing fails, try text
           try {
             const errorText = await response.text();
-            if (errorText) errorMessage = errorText;
+            if (errorText) errorMessage = this.stringifyErrorPayload(errorText);
           } catch {}
         }
         

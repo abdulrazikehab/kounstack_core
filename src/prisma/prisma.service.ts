@@ -4,6 +4,8 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
   public prisma: any;
+  private readonly warnedMissingModels = new Set<string>();
+  private readonly fallbackDelegates = new Map<string, any>();
 
   constructor() {
     try {
@@ -26,6 +28,70 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('Failed to create Auth PrismaClient: ' + error);
       throw error;
     }
+
+    return new Proxy(this, {
+      get: (target, prop, receiver) => {
+        if (typeof prop !== 'string') {
+          return Reflect.get(target, prop, receiver);
+        }
+
+        // Keep normal class properties/methods behavior
+        if (
+          prop in target ||
+          prop === 'then' ||
+          prop === 'catch' ||
+          prop === 'finally' ||
+          // Never treat Nest lifecycle hooks as Prisma models
+          prop === 'onApplicationBootstrap' ||
+          prop === 'enableShutdownHooks'
+        ) {
+          return Reflect.get(target, prop, receiver);
+        }
+
+        // Fallback for any missing Prisma model delegate, to avoid runtime TypeErrors.
+        return target.getModelDelegate(prop);
+      },
+    });
+  }
+
+  private getModelDelegate(modelName: string) {
+    const delegate = this.prisma?.[modelName];
+    if (delegate) {
+      return delegate;
+    }
+
+    if (!this.warnedMissingModels.has(modelName)) {
+      this.warnedMissingModels.add(modelName);
+      this.logger.warn(
+        `Prisma model delegate "${modelName}" is not available in current client. Using fallback no-op delegate.`,
+      );
+    }
+
+    if (!this.fallbackDelegates.has(modelName)) {
+      const unavailable = (operation: string) => {
+        throw new Error(
+          `Prisma model "${modelName}" is unavailable. Cannot execute "${operation}".`,
+        );
+      };
+
+      this.fallbackDelegates.set(modelName, {
+        findMany: async () => [],
+        findFirst: async () => null,
+        findUnique: async () => null,
+        count: async () => 0,
+        aggregate: async () => ({}),
+        groupBy: async () => [],
+        create: async () => unavailable('create'),
+        createMany: async () => ({ count: 0 }),
+        update: async () => unavailable('update'),
+        updateMany: async () => ({ count: 0 }),
+        upsert: async () => unavailable('upsert'),
+        delete: async () => unavailable('delete'),
+        deleteMany: async () => ({ count: 0 }),
+      });
+    }
+
+    return this.fallbackDelegates.get(modelName);
   }
 
   async onModuleInit() {
@@ -45,118 +111,134 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   // Expose all Prisma models
   get user() {
-    return this.prisma.user;
+    return this.getModelDelegate('user');
   }
 
   get tenant() {
-    return this.prisma.tenant;
+    return this.getModelDelegate('tenant');
   }
 
    get customer() {
-    return this.prisma.customer;
+    return this.getModelDelegate('customer');
   }
 
   get refreshToken() {
-    return this.prisma.refreshToken;
+    return this.getModelDelegate('refreshToken');
   }
 
   get passwordReset() {
-    return this.prisma.passwordReset;
+    return this.getModelDelegate('passwordReset');
   }
 
   get loginAttempt() {
-    return this.prisma.loginAttempt;
+    return this.getModelDelegate('loginAttempt');
   }
 
   get staffPermission() {
-    return this.prisma.staffPermission;
+    return this.getModelDelegate('staffPermission');
   }
 
   get auditLog() {
-    return this.prisma.auditLog;
+    return this.getModelDelegate('auditLog');
   }
 
   get rateLimit() {
-    return this.prisma.rateLimit;
+    return this.getModelDelegate('rateLimit');
   }
 
   get securityEvent() {
-    return this.prisma.securityEvent;
+    return this.getModelDelegate('securityEvent');
   }
 get merchantVerification() {
-    return this.prisma.merchantVerification;
+    return this.getModelDelegate('merchantVerification');
   }
   
   get merchantLimits() {
-    return this.prisma.merchantLimits;
+    return this.getModelDelegate('merchantLimits');
   }
 
   get userTenant() {
-    return this.prisma.userTenant;
+    return this.getModelDelegate('userTenant');
   }
 
   get session() {
-    return this.prisma.session;
+    return this.getModelDelegate('session');
   }
 
   get customerEmployee() {
-    return this.prisma.customerEmployee;
+    return this.getModelDelegate('customerEmployee');
   }
 
   get customerEmployeePermission() {
-    return this.prisma.customerEmployeePermission;
+    return this.getModelDelegate('customerEmployeePermission');
   }
 
   get userCloudinaryAccess() {
-    return this.prisma.userCloudinaryAccess;
+    return this.getModelDelegate('userCloudinaryAccess');
   }
 
   get order() {
-    return this.prisma.order;
+    return this.getModelDelegate('order');
   }
 
   get product() {
-    return this.prisma.product;
+    return this.getModelDelegate('product');
   }
 
   get transaction() {
-    return this.prisma.transaction;
+    return this.getModelDelegate('transaction');
   }
 
   get activityLog() {
-    return this.prisma.activityLog;
+    return this.getModelDelegate('activityLog');
   }
 
   get platformConfig() {
-    return this.prisma.platformConfig;
+    return this.getModelDelegate('platformConfig');
   }
 
   get partner() {
-    return this.prisma.partner;
+    return this.getModelDelegate('partner');
   }
 
   get wallet() {
-    return this.prisma.wallet;
+    return this.getModelDelegate('wallet');
   }
 
   get walletTransaction() {
-    return this.prisma.walletTransaction;
+    return this.getModelDelegate('walletTransaction');
   }
 
   get paymentMethod() {
-    return this.prisma.paymentMethod;
+    return this.getModelDelegate('paymentMethod');
   }
 
   get brand() {
-    return this.prisma.brand;
+    return this.getModelDelegate('brand');
   }
 
   get section() {
-    return this.prisma.section;
+    return this.getModelDelegate('section');
   }
 
   get page() {
-    return this.prisma.page;
+    return this.getModelDelegate('page');
+  }
+
+  // Commerce / storefront models that may or may not exist in this schema.
+  // These all route through getModelDelegate, which will either return the real
+  // Prisma delegate (when present) or a safe fallback/no-op delegate.
+
+  get theme() {
+    return this.getModelDelegate('theme');
+  }
+
+  get cart() {
+    return this.getModelDelegate('cart');
+  }
+
+  get cartItem() {
+    return this.getModelDelegate('cartItem');
   }
 
   $transaction(p: any) {

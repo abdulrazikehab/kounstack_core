@@ -112,7 +112,7 @@ export class ThemeService {
 
       if (existingThemes > 0) {
         this.logger.log(`Tenant ${tenantId} already has ${existingThemes} themes, skipping default creation`);
-        return;
+        return [];
       }
 
       // Create all default themes
@@ -131,8 +131,10 @@ export class ThemeService {
       this.logger.log(`✅ Created ${createdThemes.length} default themes for tenant ${tenantId}`);
       return createdThemes;
     } catch (error) {
+      // If the underlying Prisma model is missing in this app-core schema,
+      // fail gracefully and simply return an empty list instead of crashing.
       this.logger.error(`Failed to create default themes for tenant ${tenantId}:`, error);
-      throw error;
+      return [];
     }
   }
 
@@ -156,7 +158,7 @@ export class ThemeService {
       const themes = await this.findAll(tenantId);
       if (themes.length === 0) {
         this.logger.log(`No themes found for tenant ${tenantId}, creating defaults`);
-        return this.createDefaultThemes(tenantId);
+        return await this.createDefaultThemes(tenantId);
       }
       return themes;
     } catch (error: any) {

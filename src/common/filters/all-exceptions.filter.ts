@@ -40,6 +40,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // Save error to database
     try {
       const user = (request as any).user;
+      const allowedRoles = new Set(['SUPER_ADMIN', 'SHOP_OWNER', 'STAFF', 'CUSTOMER']);
+      const resolvedUserRole =
+        typeof user?.role === 'string' && allowedRoles.has(user.role)
+          ? user.role
+          : 'STAFF';
       // Get tenantId and validate it exists (or set to undefined to avoid FK constraint violation)
       let tenantId: string | undefined = user?.tenantId || request.headers['x-tenant-id'] as string || undefined;
       
@@ -60,25 +65,27 @@ export class AllExceptionsFilter implements ExceptionFilter {
         }
       }
       
+      // AuditLog.userId is required in current schema.
+      const userId = user?.id || user?.userId || 'system';
+      
       await this.prisma.auditLog.create({
         data: {
-          userId: user?.id || user?.sub || undefined,
-          tenantId: tenantId,
+          userId,
           action: 'ERROR',
-          resourceType: 'SYSTEM',
+          resource: 'SYSTEM',
           resourceId: status.toString(),
-          oldValues: null,
-          newValues: null,
-          ipAddress: request.ip || request.connection?.remoteAddress || undefined,
-          userAgent: request.headers['user-agent'] || undefined,
-          metadata: JSON.stringify({
+          ipAddress: request.ip || request.connection?.remoteAddress || null,
+          userAgent: request.headers['user-agent'] || null,
+          changes: {
             severity: status >= 500 ? 'CRITICAL' : status >= 400 ? 'HIGH' : 'MEDIUM',
             message: typeof message === 'string' ? message : JSON.stringify(message),
             stack,
             method: request.method,
             path: (request as any).originalUrl || request.url || request.path,
             statusCode: status,
-          }),
+            tenantId: tenantId || null,
+          },
+          userRole: resolvedUserRole,
         },
       });
     } catch (error) {

@@ -1,30 +1,41 @@
-import { IsString, IsNotEmpty, IsEnum, IsBoolean, IsUUID } from 'class-validator';
-import { InventoryType, EntityType } from '@prisma/client';
+import { IsString, IsNotEmpty, IsIn, IsBoolean } from 'class-validator';
+
+// Define enums locally since they are not available in the current Prisma schema.
+export enum InventoryType {
+  CARD = 'CARD',
+  PRODUCT = 'PRODUCT',
+}
+
+export enum EntityType {
+  PRODUCT = 'PRODUCT',
+  CATEGORY = 'CATEGORY',
+  BRAND = 'BRAND',
+}
 
 export class UpdateVisibilityDto {
-  @IsEnum(InventoryType)
+  @IsIn(Object.values(InventoryType))
   @IsNotEmpty()
-  inventoryType: InventoryType;
+  inventoryType!: InventoryType;
 
-  @IsEnum(EntityType)
+  @IsIn(Object.values(EntityType))
   @IsNotEmpty()
-  entityType: EntityType;
+  entityType!: EntityType;
 
   @IsString()
   @IsNotEmpty()
-  entityId: string;
+  entityId!: string;
 
   @IsBoolean()
   @IsNotEmpty()
-  isActive: boolean;
+  isActive!: boolean;
 }
 
 export class BulkUpdateVisibilityDto {
-  @IsEnum(InventoryType)
+  @IsIn(Object.values(InventoryType))
   @IsNotEmpty()
-  inventoryType: InventoryType;
+  inventoryType!: InventoryType;
 
-  changes: {
+  changes!: {
     entityType: EntityType;
     entityId: string;
     isActive: boolean;

@@ -7,7 +7,7 @@ export class TenantSyncService {
 
   constructor(private prisma: PrismaService) {}
 
-  async ensureTenantExists(tenantId: string, tenantData?: { name?: string; subdomain?: string; description?: string; templateId?: string }): Promise<{ id: string; name: string; subdomain: string } | null> {
+  async ensureTenantExists(tenantId: string, tenantData?: { name?: string; subdomain?: string }): Promise<{ id: string; name: string; subdomain: string } | null> {
     try {
       this.logger.log(`🔍 Checking if tenant exists: ${tenantId}`);
 
@@ -19,8 +19,6 @@ export class TenantSyncService {
           id: true,
           name: true,
           subdomain: true,
-          description: true,
-          templateId: true,
           // Only select fields that definitely exist in the database
         },
       });
@@ -31,8 +29,6 @@ export class TenantSyncService {
         const updateData: any = {};
         if (tenantData?.name) updateData.name = tenantData.name;
         if (tenantData?.subdomain) updateData.subdomain = tenantData.subdomain;
-        if (tenantData?.description) updateData.description = tenantData.description;
-        if (tenantData?.templateId) updateData.templateId = tenantData.templateId;
         
         if (Object.keys(updateData).length > 0) {
           this.logger.log(`🔄 Updating tenant ${tenantId} with new data:`, updateData);
@@ -62,14 +58,6 @@ export class TenantSyncService {
         plan: 'STARTER',
         status: 'ACTIVE',
       };
-      
-      // Only add optional fields if they're provided and the column exists
-      if (tenantData?.description !== undefined) {
-        tenantCreateData.description = tenantData.description;
-      }
-      if (tenantData?.templateId !== undefined) {
-        tenantCreateData.templateId = tenantData.templateId;
-      }
       
       let created;
       try {
