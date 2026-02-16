@@ -111,6 +111,54 @@ get merchantVerification() {
     return this.prisma.userCloudinaryAccess;
   }
 
+  get order() {
+    return this.prisma.order;
+  }
+
+  get product() {
+    return this.prisma.product;
+  }
+
+  get transaction() {
+    return this.prisma.transaction;
+  }
+
+  get activityLog() {
+    return this.prisma.activityLog;
+  }
+
+  get platformConfig() {
+    return this.prisma.platformConfig;
+  }
+
+  get partner() {
+    return this.prisma.partner;
+  }
+
+  get wallet() {
+    return this.prisma.wallet;
+  }
+
+  get walletTransaction() {
+    return this.prisma.walletTransaction;
+  }
+
+  get paymentMethod() {
+    return this.prisma.paymentMethod;
+  }
+
+  get brand() {
+    return this.prisma.brand;
+  }
+
+  get section() {
+    return this.prisma.section;
+  }
+
+  get page() {
+    return this.prisma.page;
+  }
+
   $transaction(p: any) {
     return this.prisma.$transaction(p);
   }

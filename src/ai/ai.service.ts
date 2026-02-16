@@ -103,11 +103,12 @@ export class AiService {
       this.logger.error('Error calling OpenAI API:', error);
       
       if (error instanceof Error) {
-        if (error.message.includes('API key')) {
+        if (error.message.toLowerCase().includes('api key') || error.message.toLowerCase().includes('401')) {
           throw new Error('AI service is not properly configured. Please contact support.');
         }
       }
       
+      this.logger.error('Unhandled AI Service Error:', error);
       throw new Error('Failed to get AI response. Please try again.');
     }
   }
@@ -409,8 +410,6 @@ Be concise, friendly, and practical. Provide actionable advice.`;
         this.logger.warn(`AI could not detect an amount. Raw content: ${cleanContent}`);
         return { amount: null, debug_raw: cleanContent };
       }
-      
-      return { amount: null, debug_raw: cleanContent };
 
     } catch (error) {
       this.logger.error('Error analyzing receipt:', error);
@@ -421,10 +420,9 @@ Be concise, friendly, and practical. Provide actionable advice.`;
     try {
       this.logger.log(`Generating report structure for prompt: "${prompt}"`);
       
-      const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-      if (!apiKey || apiKey === 'dummy-key') {
+      if (this.openai.apiKey === 'dummy-key') {
         this.logger.error('Attempted to generate report structure without a valid OpenAI API Key');
-        return { name: 'AI Report', description: '', structure: null };
+        return { name: 'AI Report', description: 'API configuration missing.', structure: null };
       }
 
       const systemPrompt = `You are a data architect and report designer.
@@ -472,17 +470,17 @@ Be concise, friendly, and practical. Provide actionable advice.`;
           description: report.description || '',
           structure: report.structure || {}
         };
-      } catch (parseError) {
+      } catch (parseError: any) {
         this.logger.error(`Failed to parse AI JSON response: ${parseError.message}`);
         this.logger.debug(`Raw content that failed: ${content}`);
         return { name: 'Parse Error', description: 'Failed to parse AI response', structure: null };
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error generating report structure:', error);
-      if (error.response) {
+      if (error?.response) {
         this.logger.error(`OpenAI error details: ${JSON.stringify(error.response.data)}`);
       }
-      return { name: 'Error', description: `Failed to generate report: ${error.message}`, structure: null };
+      return { name: 'Error', description: `Failed to generate report: ${error?.message || 'Unknown error'}`, structure: null };
     }
   }
 }

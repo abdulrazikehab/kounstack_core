@@ -122,7 +122,8 @@ export class TransactionService {
                   }),
                 },
                 orderBy: { createdAt: 'desc' },
-                take: filters?.limit || 50,
+                take: (filters?.limit || 50) + (filters?.offset || 0),
+                skip: 0, // We need to fetch from start to sort correctly after merging
               }
             }
           } 
@@ -218,7 +219,7 @@ export class TransactionService {
     // Merge and sort
     const all = [...mappedTransactions, ...mappedWallet]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, filters?.limit || 50);
+      .slice(filters?.offset || 0, (filters?.offset || 0) + (filters?.limit || 50));
 
     // Final mapping for display fixes
     const data = all.map(t => {
