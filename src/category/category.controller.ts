@@ -21,12 +21,16 @@ import { AuthenticatedRequest } from '../types/request.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('categories')
 export class CategoryController {
   private readonly logger = new Logger(CategoryController.name);
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudinaryService: CloudinaryService
+  ) {}
 
   private ensureTenantId(tenantId: string | undefined): string {
     if (!tenantId) {
@@ -283,6 +287,21 @@ export class CategoryController {
         },
       });
       
+      // Handle image renaming if it's a Cloudinary URL
+      if (category.image && category.image.includes('cloudinary.com')) {
+        const newImageUrl = await this.cloudinaryService.renameAndGetNewSecureUrl(
+          category.image,
+          `category_${category.id}`
+        );
+        if (newImageUrl !== category.image) {
+          await this.prisma.category.update({
+            where: { id: category.id },
+            data: { image: newImageUrl },
+          });
+          category.image = newImageUrl;
+        }
+      }
+
       return { 
         message: 'Category created successfully',
         category 
@@ -458,6 +477,24 @@ export class CategoryController {
       where: { id: id },
       data: updateData,
     });
+
+    // Handle image renaming if it's a Cloudinary URL and was updated
+    if (category.image && category.image.includes('cloudinary.com')) {
+      const newImageUrl = await this.cloudinaryService.renameAndGetNewSecureUrl(
+        category.image,
+        `category_${category.id}`
+      );
+      if (newImageUrl !== category.image) {
+        const renamedCategory = await this.prisma.category.update({
+          where: { id: category.id },
+          data: { image: newImageUrl },
+        });
+        return { 
+          message: 'Category updated successfully',
+          category: renamedCategory 
+        };
+      }
+    }
 
     return { 
       message: 'Category updated successfully',

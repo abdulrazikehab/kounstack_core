@@ -18,7 +18,6 @@ import { AuthenticatedRequest } from '../types/request.types';
 import { Public } from '../auth/public.decorator';
 
 @Controller('checkout')
-@UseGuards(JwtAuthGuard)
 export class CheckoutController {
   constructor(
     private checkoutService: CheckoutService,
@@ -31,6 +30,7 @@ export class CheckoutController {
     return tenantId || process.env.DEFAULT_TENANT_ID || 'default';
   }
 
+  @Public()
   @Post()
   async createOrder(
     @Request() req: any,

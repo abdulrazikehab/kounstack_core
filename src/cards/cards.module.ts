@@ -13,9 +13,10 @@ import { WalletController } from './wallet.controller';
 import { FavoritesService } from './favorites.service';
 import { FavoritesController } from './favorites.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 @Module({
-  imports: [PrismaModule, UserModule, HttpModule, NotificationsModule],
+  imports: [PrismaModule, UserModule, HttpModule, NotificationsModule, CloudinaryModule],
   controllers: [
     CardProductController,
     CardInventoryController,

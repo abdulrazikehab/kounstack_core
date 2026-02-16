@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, ConflictException } from '@nestj
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 export interface CreateCardProductDto {
   brandId?: string;
@@ -46,6 +47,7 @@ export class CardProductService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
+    private cloudinaryService: CloudinaryService
   ) {}
 
 
@@ -86,6 +88,48 @@ export class CardProductService {
 
 
     this.logger.log(`Created card product ${product.id}: ${product.name}`);
+
+    // Handle image renaming if it is a Cloudinary URL
+    if (data.image && data.image.includes('cloudinary.com')) {
+      const newImageUrl = await this.cloudinaryService.renameAndGetNewSecureUrl(
+        data.image,
+        `card_product_${product.id}`
+      );
+      if (newImageUrl !== data.image) {
+        // CardProduct model has an 'image' field, but the 'create' above was actually on the 'product' table? 
+        // Wait, let's check if the return 'product' is from 'this.prisma.product.create' or 'this.prisma.cardProduct.create'
+        // In the 'create' method above (lines 67-85), it uses 'this.prisma.product.create'.
+        // This is confusing as 'CardProduct' is a separate model in the schema.
+        // Let's check which one it should be.
+        
+        // If it's the 'product' table, we need to add a record to 'ProductImage' or update a field if it exists.
+        // But the schema for 'Product' doesn't have an 'image' field, it has 'images' relation.
+        // The 'CardProduct' model DOES have an 'image' field.
+        
+        // Actually, looking at 'findOne' (line 155), it takes 'product.images?.[0]?.url'.
+        // So for 'product' table, we update 'ProductImage'.
+        const firstImage = await this.prisma.productImage.findFirst({
+           where: { productId: product.id },
+           orderBy: { sortOrder: 'asc' }
+        });
+        
+        if (firstImage) {
+          await this.prisma.productImage.update({
+            where: { id: firstImage.id },
+            data: { url: newImageUrl }
+          });
+        } else {
+          await this.prisma.productImage.create({
+            data: {
+              productId: product.id,
+              url: newImageUrl,
+              sortOrder: 0
+            }
+          });
+        }
+      }
+    }
+
     return product;
   }
 
@@ -174,6 +218,25 @@ export class CardProductService {
     });
 
     this.logger.log(`Updated card product ${product.id}: ${product.name}`);
+
+    // Handle image renaming if it is a Cloudinary URL
+    if (product.image && product.image.includes('cloudinary.com')) {
+      const newImageUrl = await this.cloudinaryService.renameAndGetNewSecureUrl(
+        product.image,
+        `card_product_${product.id}`
+      );
+      if (newImageUrl !== product.image) {
+        return await this.prisma.cardProduct.update({
+          where: { id: product.id },
+          data: { image: newImageUrl },
+          include: {
+            brand: true,
+            category: true,
+          },
+        });
+      }
+    }
+
     return product;
   }
 

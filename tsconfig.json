@@ -8,11 +8,8 @@
     "strict": true,
     "esModuleInterop": true,
     "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "noImplicitAny": false,
-    "strictNullChecks": false,
-    "useUnknownInCatchVariables": false
+    "experimentalDecorators": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "scripts", "prisma", "**/*.spec.ts"]
 }

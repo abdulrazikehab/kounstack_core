@@ -1,16 +1,25 @@
 import { Controller, Get } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { Public } from './auth/public.decorator';
 
 @Controller()
 export class AppController {
-  @Public()
+  @Get()
   @SkipThrottle()
+  getHealth() {
+    return {
+      success: true,
+      service: 'app-auth',
+      status: 'running',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   @Get('health')
+  @SkipThrottle()
   health() {
     return {
       success: true,
-      service: 'core',
+      service: 'auth',
       status: 'healthy',
       timestamp: new Date().toISOString(),
     };

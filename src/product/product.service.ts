@@ -5,6 +5,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { Decimal } from '@prisma/client/runtime/library';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class ProductService {
@@ -12,7 +13,8 @@ export class ProductService {
 
   constructor(
     private prisma: PrismaService,
-    private tenantSyncService: TenantSyncService, // Add this dependency
+    private tenantSyncService: TenantSyncService,
+    private cloudinaryService: CloudinaryService
   ) {}
 
   /**
@@ -373,6 +375,30 @@ export class ProductService {
         });
     
         this.logger.log(`✅ Product created successfully: ${product.id}`);
+
+        // Handle image renaming if they are Cloudinary URLs
+        if (product.images && product.images.length > 0) {
+          const updatedImages = await Promise.all(
+            product.images.map(async (image, index) => {
+              if (image.url && image.url.includes('cloudinary.com')) {
+                const newUrl = await this.cloudinaryService.renameAndGetNewSecureUrl(
+                  image.url,
+                  `product_${product.id}_${index}`
+                );
+                if (newUrl !== image.url) {
+                  return this.prisma.productImage.update({
+                    where: { id: image.id },
+                    data: { url: newUrl },
+                  });
+                }
+              }
+              return image;
+            })
+          );
+          // @ts-ignore
+          product.images = updatedImages;
+        }
+
         return this.mapToResponseDto(product);
       } catch (error: any) {
         // Handle Unique Constraint Violation (P2002)
@@ -1032,6 +1058,30 @@ export class ProductService {
       });
 
       this.logger.log(`✅ Product updated successfully: ${id}`);
+
+      // Handle image renaming if they are Cloudinary URLs
+      if (product.images && product.images.length > 0) {
+        const updatedImages = await Promise.all(
+          product.images.map(async (image, index) => {
+            if (image.url && image.url.includes('cloudinary.com')) {
+              const newUrl = await this.cloudinaryService.renameAndGetNewSecureUrl(
+                image.url,
+                `product_${product.id}_${index}`
+              );
+              if (newUrl !== image.url) {
+                return this.prisma.productImage.update({
+                  where: { id: image.id },
+                  data: { url: newUrl },
+                });
+              }
+            }
+            return image;
+          })
+        );
+        // @ts-ignore
+        product.images = updatedImages;
+      }
+
       return this.mapToResponseDto(product);
     } catch (error: any) {
       this.logger.error(`❌ Product update failed for tenant ${tenantId}. Product ID: ${id}`, {

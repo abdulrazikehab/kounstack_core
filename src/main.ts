@@ -1,22 +1,17 @@
-// main.ts
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { NestExpressApplication } from '@nestjs/platform-express';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import helmet from 'helmet';
-import { ValidationPipe, Logger, BadRequestException } from '@nestjs/common';
-import { securityConfig, isVerifiedCustomDomain } from './config/security.config';
-import { json, urlencoded, Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import * as express from 'express';
+import { Request, Response, NextFunction } from 'express';
 import * as fs from 'fs';
 
-// Load environment variables first with robust path checking
+// Load environment variables FIRST with robust path checking
 const envPaths = [
   path.resolve(process.cwd(), '.env'),
-  path.resolve(process.cwd(), 'saa-ah_core', '.env'),
+  path.resolve(process.cwd(), 'saa-ah_auth', '.env'),
   path.resolve(__dirname, '..', '.env'), 
 ];
 
@@ -30,17 +25,51 @@ for (const envPath of envPaths) {
 }
 
 if (!envFound && !process.env.JWT_SECRET) {
-  console.warn('⚠️  Warning: .env file not found. Check your working directory.');
+  console.warn('⚠️  Warning: .env file not found and JWT_SECRET is missing. Check your working directory.');
 }
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   
   try {
-    const app = await NestFactory.create<NestExpressApplication>(AppModule);
+    const app = await NestFactory.create(AppModule);
+    
+    // Set global prefix to match Nginx proxy and frontend expectations
+    app.setGlobalPrefix('auth');
     
     // CRITICAL: Enable CORS FIRST before any other middleware to prevent duplicate headers
-    // Enhanced CORS configuration for frontend and subdomains
+    // Enable CORS with proper origin handling to prevent duplicate headers
+
+    // SECURITY FIX: CORS restricted to allowed origins only
+    // Define allowed origins FIRST before using them in middleware
+    const corsOrigins = process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+      : [];
+    const allowedOriginsList = [
+      ...corsOrigins,
+      'http://localhost:3000',
+      'http://localhost:4173',
+      'http://localhost:5173',
+      'http://localhost:8080',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:4173',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:8080',
+      'http://127.0.0.1:8080',
+      'https://saeaa.com',
+      'https://saeaa.net',
+      'https://www.saeaa.com',
+      'https://www.saeaa.net',
+      'https://app.saeaa.com',
+      'https://app.saeaa.net',
+      'https://kawn.com',
+      'https://kawn.net',
+      'https://www.kawn.com',
+      'https://www.kawn.net',
+      'https://app.kawn.com',
+      'https://app.kawn.net',
+      'http://192.168.1.32:4173',
+    ].filter(Boolean);
 
     // CRITICAL: Handle OPTIONS preflight requests FIRST before CORS middleware
     // This ensures preflight requests get proper CORS headers
@@ -48,15 +77,15 @@ async function bootstrap() {
       if (req.method === 'OPTIONS') {
         // Set CORS headers for preflight
         const origin = req.headers.origin;
+        // SECURITY FIX: Don't allow * in production
         if (origin) {
-          // Validate origin using security config
-          securityConfig.cors.origin(origin, (err, allowed) => {
-            if (!err && allowed) {
-              res.setHeader('Access-Control-Allow-Origin', allowed as string);
-            }
-          });
+          // Validate origin
+          if (allowedOriginsList.includes(origin) || /^https:\/\/([\w-]+\.)?(saeaa\.com|saeaa\.net|kawn\.com|kawn\.net)$/.test(origin)) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+          } else if (process.env.NODE_ENV === 'development') {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+          }
         } else if (process.env.NODE_ENV === 'development') {
-          // SECURITY FIX: Only allow * in development
           res.setHeader('Access-Control-Allow-Origin', '*');
         }
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
@@ -88,11 +117,39 @@ async function bootstrap() {
       next();
     });
 
-    // SECURITY FIX: CORS restricted to allowed origins only
     app.use(cors({
-      origin: securityConfig.cors.origin,
-      credentials: securityConfig.cors.credentials,
-      methods: securityConfig.cors.methods.split(','),
+      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) => {
+        // Allow requests with no origin (mobile apps, Postman, curl)
+        if (!origin) {
+          return callback(null, true);
+        }
+
+        // Check exact match
+        if (allowedOriginsList.includes(origin)) {
+          return callback(null, origin);
+        }
+
+        // Allow subdomains of kawn.com and kawn.net and saeaa.com and saeaa.net
+        const isAllowedSubdomain = /^https:\/\/([\w-]+\.)?(saeaa\.com|saeaa\.net|kawn\.com|kawn\.net)$/.test(origin);
+        if (isAllowedSubdomain) {
+          return callback(null, origin);
+        }
+
+        // Allow localhost subdomains (development)
+        if (/^http:\/\/[\w-]+\.localhost(:\d+)?$/.test(origin)) {
+          return callback(null, origin);
+        }
+
+        // Allow nip.io domains (development)
+        if (origin.includes('.nip.io')) {
+          return callback(null, origin);
+        }
+
+        // Reject unknown origins
+        callback(new Error(`Origin ${origin} is not allowed by CORS`));
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
       allowedHeaders: [
         'Content-Type',
         'Authorization',
@@ -118,8 +175,8 @@ async function bootstrap() {
         'Content-Type',
         'Authorization'
       ],
-      preflightContinue: securityConfig.cors.preflightContinue,
-      optionsSuccessStatus: securityConfig.cors.optionsSuccessStatus,
+      preflightContinue: false,
+      optionsSuccessStatus: 204,
     }));
 
     // CRITICAL: Remove duplicate CORS headers before response is sent
@@ -149,55 +206,37 @@ async function bootstrap() {
     
     // Enable cookie parser AFTER CORS
     app.use(cookieParser());
-    
-    // SECURITY FIX: Hardened CSRF Protection for state-changing operations
-    app.use(async (req: Request, res: Response, next: NextFunction) => {
-      // Skip CSRF for safe methods
+
+    // SECURITY FIX: CSRF Protection for state-changing operations
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      // Skip CSRF for safe methods (GET, HEAD, OPTIONS)
       if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
         return next();
       }
       
-      const origin = req.headers.origin as string;
-      const referer = req.headers.referer as string;
-      const requestedWith = req.headers['x-requested-with'];
-      
-      // In production, we require either a custom header OR a valid origin
+      // In production, enforce Origin/Referer checks
       if (process.env.NODE_ENV === 'production') {
+        const origin = req.headers.origin as string;
+        const referer = req.headers.referer as string;
+        const requestedWith = req.headers['x-requested-with'];
+        
         // 1. Check for custom header which browsers don't allow cross-origin without CORS
+        // This is a standard way to bypass CSRF for API requests
         if (requestedWith) {
           return next();
         }
 
-        // 2. Validate Origin/Referer
         const source = origin || referer;
         
         if (source) {
           const allowedOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [];
           
-          // Enhanced regex: Allow paths, ports, and subdomains for platform domains
-          const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
-          const secondaryDomain = process.env.PLATFORM_SECONDARY_DOMAIN || 'saeaa.net';
-          const escapedPlatform = platformDomain.replace(/\./g, '\\.');
-          const escapedSecondary = secondaryDomain.replace(/\./g, '\\.');
-          const kawnDomainRegex = new RegExp(`^https?:\\/\\/([\\w-]+\\.)?(koun\\.com|koun\\.net|kawn\\.com|kawn\\.net|${escapedPlatform}|${escapedSecondary})([:/].*)?$`);
+          // Enhanced regex: Allow paths, ports, and subdomains
+          const kawnDomainRegex = /^https?:\/\/([\w-]+\.)?(saeaa\.com|saeaa\.net|koun\.com|koun\.net|kawn\.com|kawn\.net)([:/].*)?$/;
           
-          let isAllowed = allowedOrigins.some(allowed => source.startsWith(allowed)) || 
+          const isAllowed = allowedOrigins.some(allowed => source.startsWith(allowed)) || 
                            kawnDomainRegex.test(source);
-          
-          // Check if source is a verified custom domain (async with fallback)
-          if (!isAllowed) {
-            try {
-              const sourceUrl = new URL(source);
-              const hostname = sourceUrl.hostname.toLowerCase();
-              const isCustom = await isVerifiedCustomDomain(hostname);
-              if (isCustom) {
-                isAllowed = true;
-              }
-            } catch {
-              // Failed to check custom domain, fall through to block
-            }
-          }
-                            
+                           
           if (!isAllowed) {
             logger.warn(`CSRF: Blocked ${req.method} request to ${req.path} from unauthorized source: ${source}`);
             return res.status(403).json({ 
@@ -205,10 +244,10 @@ async function bootstrap() {
             });
           }
         } else {
-          // If a state-changing request has cookies but no source header, it's likely a CSRF attempt
-          if (req.headers.cookie) {
-            logger.warn(`CSRF: State-changing request (${req.method}) to ${req.path} missing Origin/Referer from browser at ${req.ip}`);
-            return res.status(403).json({ message: 'Forbidden: Request source missing' });
+          // Block requests with no source in production if they look like browser requests
+          if (req.headers['user-agent']?.includes('Mozilla') && !requestedWith) {
+             logger.warn(`CSRF: Blocked ${req.method} request to ${req.path} with missing Origin/Referer`);
+             return res.status(403).json({ message: 'Forbidden: Request source missing' });
           }
         }
       }
@@ -216,87 +255,28 @@ async function bootstrap() {
       next();
     });
     
-    // Increase body limit for image uploads and capture raw body for webhook verification
-    app.use(json({ 
-      limit: '10mb',
-      verify: (req: any, res, buf) => {
-        // OPTIMIZATION: Only capture rawBody for webhook verification to save memory on 'very big data'
-        if (req.url && (req.url.includes('/webhook') || req.url.includes('/webhooks'))) {
-          req.rawBody = buf;
-        }
-      }
-    }));
-    app.use(urlencoded({ 
-      extended: true, 
-      limit: '10mb',
-      verify: (req: any, res, buf) => {
-        if (req.url && (req.url.includes('/webhook') || req.url.includes('/webhooks'))) {
-          req.rawBody = buf;
-        }
-      }
-    }));
-
-    // Serve static files from public directory (for app builder icons, APKs, etc.)
-    app.useStaticAssets(path.join(process.cwd(), 'public'));
-    
-    // Serve uploads directory for digital card files and other dynamic content
-    app.useStaticAssets(path.join(process.cwd(), 'uploads'), {
-      prefix: '/uploads',
-    });
-
-    // Set global prefix to handle /api/api/... routes from frontend
-    // Frontend calls /api/api/categories, backend receives /api/api/categories
-    // With global prefix 'api', route becomes /api/categories which matches controller
-    app.setGlobalPrefix('api');
-    
-    // SECURITY FIX: Verify required secrets are loaded (no fallbacks)
+    // SECURITY FIX: Verify required secrets (no fallbacks)
     if (!process.env.JWT_SECRET) {
-      logger.error('❌ JWT_SECRET is not configured in environment variables');
+      logger.error('❌ JWT_SECRET is not configured in auth service environment variables');
       logger.error('❌ Application cannot start without JWT_SECRET');
       process.exit(1);
     }
-    
+
     if (process.env.JWT_SECRET === 'fallback-secret' || process.env.JWT_SECRET.length < 32) {
       logger.error('❌ JWT_SECRET is using insecure default or too short');
       logger.error('❌ JWT_SECRET must be at least 32 characters');
       process.exit(1);
     }
 
-    if (!process.env.ORDER_TRACKING_SECRET || process.env.ORDER_TRACKING_SECRET === 'default-secret-change-in-production') {
-      logger.error('❌ ORDER_TRACKING_SECRET is not configured or using default value');
-      process.exit(1);
-    }
-
-    if (process.env.ORDER_TRACKING_SECRET.length < 32) {
-      logger.error('❌ ORDER_TRACKING_SECRET must be at least 32 characters');
-      process.exit(1);
-    }
-
-    if (!process.env.HYPERPAY_WEBHOOK_SECRET) {
-      logger.error('❌ HYPERPAY_WEBHOOK_SECRET is not configured');
-      process.exit(1);
-    }
-
-    // Security Hardening (AFTER CORS)
-    app.use(helmet(securityConfig.helmet));
-    
-    // SECURITY FIX: Add additional security headers
+    // SECURITY FIX: Add security headers
     app.use((req: Request, res: Response, next: NextFunction) => {
-      // X-Content-Type-Options: Prevent MIME type sniffing
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      // X-Frame-Options: Prevent clickjacking - ALLOW SAME ORIGIN for App Builder
-      // Was DENY, which blocked iframes completely
-      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-      // X-XSS-Protection: Enable XSS filter (legacy browsers)
+      res.setHeader('X-Frame-Options', 'DENY');
       res.setHeader('X-XSS-Protection', '1; mode=block');
-      // Referrer-Policy: Control referrer information
       res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-      // Permissions-Policy: Restrict browser features
       res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(), payment=()');
-      // Remove X-Powered-By header (Helmet should handle this, but ensure it's removed)
       res.removeHeader('X-Powered-By');
       
-      // HSTS: Force HTTPS in production
       if (process.env.NODE_ENV === 'production') {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
       }
@@ -312,6 +292,16 @@ async function bootstrap() {
         path: req.path,
         method: req.method,
       });
+
+      // Ensure CORS headers are present even for errors
+      const origin = req.headers.origin;
+      if (origin) {
+         // Re-check against allowed list to be safe, or just echo back in dev
+        if (allowedOriginsList.includes(origin) || process.env.NODE_ENV === 'development' || /^https:\/\/([\w-]+\.)?(saeaa\.com|saeaa\.net|kawn\.com|kawn\.net)$/.test(origin)) {
+           res.setHeader('Access-Control-Allow-Origin', origin);
+           res.setHeader('Access-Control-Allow-Credentials', 'true');
+        }
+      }
       
       // Don't expose error details in production
       if (process.env.NODE_ENV === 'production') {
@@ -329,7 +319,7 @@ async function bootstrap() {
         });
       }
     });
-    
+
     // SECURITY FIX: Enforce HTTPS in production
     if (process.env.NODE_ENV === 'production') {
       app.use((req: Request, res: Response, next: NextFunction) => {
@@ -340,44 +330,22 @@ async function bootstrap() {
       });
     }
     
+    // Enable global validation
     app.useGlobalPipes(new ValidationPipe({
       whitelist: true,
-      transform: true,
       forbidNonWhitelisted: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-      exceptionFactory: (errors) => {
-        const messages = errors.map((error) => {
-          const constraints = error.constraints || {};
-          return Object.values(constraints).join(', ');
-        });
-        return new BadRequestException({
-          message: messages.join('. '),
-          error: 'Bad Request',
-          statusCode: 400,
-          errors: errors.map((error) => ({
-            property: error.property,
-            value: error.value,
-            constraints: error.constraints,
-          })),
-        });
-      },
+      transform: true,
     }));
-    
-    // Add global filter to log validation errors
-    const { ValidationExceptionFilter } = await import('./common/filters/validation-exception.filter');
-    app.useGlobalFilters(new ValidationExceptionFilter());
 
-    const port = process.env.CORE_PORT || 3002;
+    // Exception filter is now registered in app.module.ts via APP_FILTER
+    
+    const port = process.env.CORE_PORT || 3001;
     await app.listen(port,'0.0.0.0');
-    logger.log(`✅ app-core listening on port ${port}`);
-    logger.log('🚀 AI RECEIPT ANALYSIS UPDATE v2 LOADED - Ready for SAB, SNB, and Negative Amounts');
+    logger.log(`✅ Auth service running on port ${port}`);
   } catch (error) {
-    logger.error('Failed to start core service:', error);
+    logger.error('Failed to start auth service:', error);
     process.exit(1);
   }
 }
-
 bootstrap();
  

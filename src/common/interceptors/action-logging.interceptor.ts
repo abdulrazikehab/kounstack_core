@@ -23,7 +23,7 @@ export class ActionLoggingInterceptor implements NestInterceptor {
     const userAgent = request.headers['user-agent'];
 
     // Skip logging for certain endpoints
-    const skipPaths = ['/api/health', '/api/admin/master', '/api/activity-log'];
+    const skipPaths = ['/auth/health', '/auth/security-events', '/auth/audit-logs', '/auth/error-logs'];
     if (skipPaths.some(path => url.includes(path))) {
       return next.handle();
     }
@@ -33,66 +33,63 @@ export class ActionLoggingInterceptor implements NestInterceptor {
         try {
           // Log all successful actions
           const isSuccess = response && (
-            (typeof response === 'object' && response.success === true) ||
-            (typeof response === 'object' && !('statusCode' in response) && !('error' in response)) ||
+            (typeof response === 'object' && !('error' in response) && !('statusCode' in response && response.statusCode >= 400)) ||
             (typeof response === 'object' && 'statusCode' in response && response.statusCode >= 200 && response.statusCode < 300)
           );
 
-          // Get tenant ID from user, request context, or header
-          const tenantId = user?.tenantId || (request as any).tenantId || (request.headers['x-tenant-id'] as string);
-          
-          if (isSuccess && this.prisma.activityLog && tenantId && tenantId !== 'system') {
-            try {
-              // OPTIMIZATION: Cache tenant existence check to reduce DB load
-              let tenantExists = false;
-              const cached = ActionLoggingInterceptor.tenantCache.get(tenantId);
-              const now = Date.now();
-              
-              if (cached && (now - cached.timestamp < this.CACHE_TTL)) {
-                tenantExists = cached.exists;
-              } else {
-                const tenant = await this.prisma.tenant.findUnique({
-                  where: { id: tenantId },
-                  select: { id: true },
-                });
-                tenantExists = !!tenant;
-                ActionLoggingInterceptor.tenantCache.set(tenantId, { exists: tenantExists, timestamp: now });
-              }
+          if (isSuccess) {
+            // Get tenantId and validate it exists (or set to undefined to avoid FK constraint violation)
+            let tenantId: string | undefined = user?.tenantId || (request.headers['x-tenant-id'] as string) || undefined;
+            
+            // Validate tenantId exists if provided (to avoid FK constraint violation)
+            if (tenantId) {
+              try {
+                // OPTIMIZATION: Cache tenant existence check to reduce DB load
+                let tenantExists = false;
+                const cached = ActionLoggingInterceptor.tenantCache.get(tenantId);
+                const now = Date.now();
+                
+                if (cached && (now - cached.timestamp < this.CACHE_TTL)) {
+                  tenantExists = cached.exists;
+                } else {
+                  const tenant = await this.prisma.tenant.findUnique({
+                    where: { id: tenantId },
+                    select: { id: true },
+                  });
+                  tenantExists = !!tenant;
+                  ActionLoggingInterceptor.tenantCache.set(tenantId, { exists: tenantExists, timestamp: now });
+                }
 
-              if (!tenantExists) return;
-
-              // Log all successful actions
-              await this.prisma.activityLog.create({
-                data: {
-                  tenantId,
-                  actorId: user?.id || user?.sub || 'anonymous',
-                  action: this.getFriendlyActionName(method, url),
-                  targetId: params?.id || query?.id || body?.id || null,
-                  details: {
-                    method,
-                    url,
-                    originalAction: `${method} ${url.split('?')[0]}`,
-                    body: this.sanitizeBody(body),
-                    query,
-                    params,
-                    ipAddress,
-                    userAgent,
-                    resourceType: this.getResourceType(url),
-                    userEmail: user?.email,
-                    userName: user?.name,
-                  },
-                },
-              });
-
-            } catch (logError: any) {
-              // If logging fails (e.g., foreign key constraint), silently skip
-              // Don't break the request flow
-              if (logError?.code !== 'P2003') { // P2003 is foreign key constraint error
-                // Only log non-foreign-key errors for debugging
-                console.warn('Activity log creation failed:', logError?.message);
+                if (!tenantExists) {
+                  tenantId = undefined;
+                }
+              } catch (validationError) {
+                tenantId = undefined;
               }
             }
+            
+            await this.prisma.auditLog.create({
+              data: {
+                userId: user?.id || user?.sub || undefined,
+                tenantId: tenantId,
+                action: `${method} ${url.split('?')[0]}`,
+                resourceType: this.getResourceType(url),
+                resourceId: params?.id || query?.id || body?.id || undefined,
+                oldValues: null,
+                newValues: JSON.stringify({ body, query, params }),
+                ipAddress,
+                userAgent,
+                metadata: JSON.stringify({
+                  method,
+                  url,
+                  responseType: typeof response,
+                  userEmail: user?.email,
+                  userName: user?.name,
+                }),
+              },
+            });
           }
+
         } catch (error) {
           // Silent fail - don't break request if logging fails
         }
@@ -100,103 +97,14 @@ export class ActionLoggingInterceptor implements NestInterceptor {
     );
   }
 
-  private getFriendlyActionName(method: string, url: string): string {
-    const path = url.split('?')[0].toLowerCase();
-    
-    // Mapping for common dashboard endpoints
-    if (path.includes('/api/reports/payments')) return 'عرض تقارير المدفوعات';
-    if (path.includes('/api/reports')) return 'عرض التقارير العام';
-    if (path.includes('/api/orders')) return method === 'GET' ? 'عرض الطلبات' : 'تحديث طلب';
-    if (path.includes('/api/suppliers')) return 'عرض قائمة الموردين';
-    if (path.includes('/api/categories')) return 'عرض التصنيفات';
-    if (path.includes('/api/brands')) return 'عرض العلامات التجارية';
-    if (path.includes('/api/products')) return method === 'GET' ? 'عرض المنتجات / المخزون' : 'تحديث منتج';
-    if (path.includes('/api/customers')) return 'عرض بيانات العملاء';
-    if (path.includes('/api/transactions')) return 'عرض السجل المالي';
-    if (path.includes('/api/wallet')) return 'إدارة المحفظة والرصيد';
-    if (path.includes('/api/settings')) return 'تحديث إعدادات المتجر';
-    if (path.includes('/api/auth/login')) return 'تسجيل الدخول';
-    if (path.includes('/api/auth/logout')) return 'تسجيل الخروج';
-    
-    // Fallback if no specific mapping
-    const resource = this.getResourceType(url).toLowerCase();
-    const actionMap: Record<string, string> = {
-      'get': 'عرض',
-      'post': 'إضافة',
-      'put': 'تحديث',
-      'patch': 'تحديث',
-      'delete': 'حذف',
-    };
-
-    const resourceMap: Record<string, string> = {
-      'product': 'منتجات',
-      'order': 'طلبات',
-      'category': 'تصنيفات',
-      'cart': 'سلة التسوق',
-      'checkout': 'إتمام الطلب',
-      'page': 'صفحات',
-      'theme': 'القوالب',
-      'settings': 'الإعدادات',
-      'domain': 'النطاقات',
-      'template': 'القوالب',
-      'collection': 'المجموعات',
-      'coupon': 'القسائم',
-      'shipping': 'الشحن',
-      'tax': 'الضرائب',
-      'customer': 'العملاء',
-      'dashboard': 'لوحة التحكم',
-      'analytics': 'التحليلات',
-      'report': 'التقارير',
-      'transaction': 'العمليات',
-      'payment': 'المدفوعات',
-      'system': 'النظام'
-    };
-
-    const translatedAction = actionMap[method.toLowerCase()] || method;
-    const translatedResource = resourceMap[resource] || resource;
-
-    return `${translatedAction} ${translatedResource}`;
-  }
-
   private getResourceType(url: string): string {
-    if (url.includes('/products')) return 'PRODUCT';
-    if (url.includes('/orders')) return 'ORDER';
-    if (url.includes('/categories')) return 'CATEGORY';
-    if (url.includes('/cart')) return 'CART';
-    if (url.includes('/checkout')) return 'CHECKOUT';
-    if (url.includes('/pages')) return 'PAGE';
-    if (url.includes('/theme')) return 'THEME';
-    if (url.includes('/settings')) return 'SETTINGS';
-    if (url.includes('/site-config')) return 'SETTINGS';
-    if (url.includes('/domain')) return 'DOMAIN';
-    if (url.includes('/templates')) return 'TEMPLATE';
-    if (url.includes('/collections')) return 'COLLECTION';
-    if (url.includes('/coupons')) return 'COUPON';
-    if (url.includes('/shipping')) return 'SHIPPING';
-    if (url.includes('/tax')) return 'TAX';
-    if (url.includes('/customers')) return 'CUSTOMER';
-    if (url.includes('/dashboard')) return 'DASHBOARD';
-    if (url.includes('/analytics')) return 'ANALYTICS';
-    if (url.includes('/reports')) return 'REPORT';
-    if (url.includes('/transactions')) return 'TRANSACTION';
-    if (url.includes('/payment')) return 'PAYMENT';
+    if (url.includes('/auth/login')) return 'AUTH';
+    if (url.includes('/auth/signup')) return 'AUTH';
+    if (url.includes('/auth/refresh')) return 'AUTH';
+    if (url.includes('/auth/logout')) return 'AUTH';
+    if (url.includes('/auth/password')) return 'AUTH';
+    if (url.includes('/staff')) return 'STAFF';
     return 'SYSTEM';
-  }
-
-  private sanitizeBody(body: any): any {
-    if (!body) return null;
-    const sanitized = { ...body };
-    // SECURITY FIX: Remove all sensitive fields
-    if (sanitized.password) sanitized.password = '[REDACTED]';
-    if (sanitized.token) sanitized.token = '[REDACTED]';
-    if (sanitized.refreshToken) sanitized.refreshToken = '[REDACTED]';
-    if (sanitized.accessToken) sanitized.accessToken = '[REDACTED]';
-    if (sanitized.secret) sanitized.secret = '[REDACTED]';
-    if (sanitized.apiKey) sanitized.apiKey = '[REDACTED]';
-    if (sanitized.adminApiKey) sanitized.adminApiKey = '[REDACTED]';
-    if (sanitized['x-admin-api-key']) sanitized['x-admin-api-key'] = '[REDACTED]';
-    if (sanitized['x-api-key']) sanitized['x-api-key'] = '[REDACTED]';
-    return sanitized;
   }
 }
 

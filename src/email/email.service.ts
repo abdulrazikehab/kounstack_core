@@ -32,14 +32,17 @@ export class EmailService implements OnModuleInit {
     const resendApiKey = process.env.RESEND_API_KEY;
     if (resendApiKey) {
       this.useResend = true;
-      // Use onboarding@resend.dev as safe default (works without domain verification)
-      // Don't fall back to SMTP_USER which might be a Gmail address that Resend rejects
       const resendFrom = process.env.RESEND_FROM || 'onboarding@resend.dev';
-      this.logger.log(`✅ Resend API key detected - emails will be sent via Resend`);
-      this.logger.log(`📧 Resend sender: ${resendFrom}`);
-      this.logger.log(`📧 Initializing SMTP as fallback for Resend validation errors`);
-      // Continue to SMTP initialization below as fallback
+      this.logger.log(`✅ Resend configuration detected (API Key starts with ${resendApiKey.substring(0, 5)})`);
+      this.logger.log(`📧 Resend default sender: ${resendFrom}`);
+      if (resendFrom === 'onboarding@resend.dev') {
+        this.logger.warn(`⚠️ Using default Resend 'onboarding' email. This ONLY works for sending to your own email address.`);
+      }
+    } else {
+      this.logger.warn(`⚠️ No Resend API key detected - will rely on SMTP as primary`);
     }
+    
+    this.logger.log(`📧 Initializing SMTP transporter...`);
     
     // Initialize SMTP/Nodemailer (either as primary or as fallback for Resend)
     const smtpHost = process.env.SMTP_HOST;
@@ -59,8 +62,15 @@ export class EmailService implements OnModuleInit {
             user: smtpUser,
             pass: smtpPass, // Gmail App Password (16 characters, no spaces)
           },
+          tls: {
+            // Fix: Allow self-signed certificates which often cause issues in local/windows environments
+            rejectUnauthorized: false
+          }
         });
-        this.logger.log(`✅ Gmail transporter created with user: ${smtpUser.substring(0, 3)}***`);
+        const maskedUser = (smtpUser || '').includes('@') 
+          ? (smtpUser || '').split('@')[0].substring(0, 3) + '...' + (smtpUser || '').split('@')[1]
+          : (smtpUser || '').substring(0, 3) + '...';
+        this.logger.log(`✅ Gmail transporter created (user: ${maskedUser})`);
         
         // Verify connection configuration - CRITICAL for real email delivery
         this.logger.log(`📧 Verifying Gmail SMTP connection...`);
@@ -87,8 +97,11 @@ export class EmailService implements OnModuleInit {
             this.logger.warn('⚠️ Development mode: Using test account (emails go to preview URL only)');
             await this.createTestAccount();
           } else {
-            // In production, fail hard
-            throw new Error('Gmail SMTP verification failed. Real emails cannot be sent. Please fix SMTP_PASS in .env file.');
+            // In production, log error but don't crash startup. Email sending will fail later if not fixed.
+            this.logger.error('❌ CRITICAL: Gmail SMTP verification failed in PRODUCTION. Real emails cannot be sent.');
+            this.logger.error('❌ Fix SMTP_PASS in .env file immediately.');
+            // Ensure isTestAccount is false so we get real errors instead of fake successes
+            this.isTestAccount = false;
           }
         } else {
           this.isTestAccount = false; // Mark as real SMTP
@@ -99,14 +112,23 @@ export class EmailService implements OnModuleInit {
         if (error instanceof Error && error.message.includes('Invalid login')) {
           this.logger.error('❌ Gmail authentication failed - App Password is invalid');
         }
-        this.logger.warn('⚠️ Falling back to test account (Ethereal.email) - emails will NOT go to real inboxes');
-        await this.createTestAccount();
+        if (process.env.NODE_ENV === 'development') {
+          this.logger.warn('⚠️ Falling back to test account (Ethereal.email) - emails will NOT go to real inboxes');
+          await this.createTestAccount();
+        } else {
+          this.logger.error(`❌ SMTP configuration failed in production: ${error instanceof Error ? error.message : String(error)}`);
+          this.isTestAccount = false;
+        }
       }
     } else {
-      // No SMTP credentials - automatically create test account
-      this.logger.warn('⚠️ SMTP credentials not configured in .env file');
-      this.logger.warn('⚠️ Creating test account (Ethereal.email) - emails will NOT go to real inboxes');
-      await this.createTestAccount();
+      // No SMTP credentials
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.warn('⚠️ SMTP credentials not configured - using test account');
+        await this.createTestAccount();
+      } else {
+        this.logger.error('❌ SMTP credentials not configured in production .env file');
+        this.isTestAccount = false;
+      }
     }
   }
 
@@ -125,6 +147,9 @@ export class EmailService implements OnModuleInit {
           user: testAccount.user,
           pass: testAccount.pass,
         },
+        tls: {
+          rejectUnauthorized: false
+        }
       });
       
       this.isTestAccount = true;
@@ -252,11 +277,14 @@ export class EmailService implements OnModuleInit {
           html: `<p>You requested to reset your password. Use this code: <strong>${code}</strong></p>`,
         });
         const messageId = result?.id || result?.data?.id || 'resend';
+        if (result.error) throw new Error(result.error.message || 'Unknown Resend error');
+        
         this.logger.log(`Password reset email sent via Resend to ${email}, Message ID: ${messageId}`);
         return { messageId, previewUrl: '' };
       } catch (error: any) {
-        this.logger.error(`Failed to send password reset email via Resend to ${email}:`, error);
-        throw new Error(`Failed to send password reset email via Resend: ${error?.message || error}`);
+        this.logger.error(`Failed to send password reset email via Resend to ${email}: ${error.message || error}`);
+        this.logger.warn('⚠️ Falling back to SMTP...');
+        // Fall through to SMTP logic
       }
     }
 
@@ -512,9 +540,9 @@ export class EmailService implements OnModuleInit {
                       © ${new Date().getFullYear()} Koun Platform. جميع الحقوق محفوظة.
                     </p>
                     
-                     <!-- Social Links -->
+                    <!-- Social Links -->
                     <div style="margin-top: 20px;">
-                      <a href="https://saeaa.com" style="color: #06B6D4; text-decoration: none; margin: 0 15px; font-size: 12px; opacity: 0.8;">🌐 الموقع</a>
+                      <a href="https://kawn.com" style="color: #06B6D4; text-decoration: none; margin: 0 15px; font-size: 12px; opacity: 0.8;">🌐 الموقع</a>
                       <a href="#" style="color: #06B6D4; text-decoration: none; margin: 0 15px; font-size: 12px; opacity: 0.8;">📧 الدعم</a>
                       <a href="#" style="color: #06B6D4; text-decoration: none; margin: 0 15px; font-size: 12px; opacity: 0.8;">📱 التطبيق</a>
                     </div>
@@ -625,11 +653,14 @@ export class EmailService implements OnModuleInit {
           html: htmlTemplate,
         });
         const messageId = result?.id || result?.data?.id || 'resend';
+        if (result.error) throw new Error(result.error.message || 'Unknown Resend error');
+
         this.logger.log(`Password reset link email sent via Resend to ${email}, Message ID: ${messageId}`);
         return { messageId, previewUrl: '' };
       } catch (error: any) {
-        this.logger.error(`Failed to send password reset link email via Resend to ${email}:`, error);
-        throw new Error(`Failed to send password reset link email via Resend: ${error?.message || error}`);
+        this.logger.error(`Failed to send password reset link email via Resend to ${email}: ${error.message || error}`);
+        this.logger.warn('⚠️ Falling back to SMTP...');
+        // Fall through to SMTP logic
       }
     }
 
@@ -682,20 +713,22 @@ export class EmailService implements OnModuleInit {
       }
       
       return {
-        messageId: info.messageId || 'test',
-        previewUrl: previewUrl || '',
+        messageId: info.messageId,
+        previewUrl: nodemailer.getTestMessageUrl(info) || ''
       };
     } catch (error: any) {
-      this.logger.error(`❌ Failed to send password reset link email to ${email}:`, error);
-      if ((error as any).code === 'EAUTH') {
-        throw new Error('Email authentication failed. Please check SMTP credentials.');
-      } else if ((error as any).code === 'ECONNECTION') {
-        throw new Error('Failed to connect to SMTP server. Please check SMTP settings.');
+      if (email.includes('@example.com')) {
+         this.logger.warn(`Skipping actual email sending for example domain: ${email}`);
+         return { messageId: 'skipped', previewUrl: '' };
       }
-      throw new Error(`Failed to send password reset link email: ${error.message || error}`);
+      this.logger.error(`Failed to send email to ${email}: ${error.message || error}`);
+      if ((error as any).code === 'EAUTH') {
+        this.logger.error('Email authentication failed. Please check SMTP credentials.');
+        throw new Error('Email authentication failed. Please check SMTP credentials.');
+      }
+      throw error;
     }
   }
-
 
   async sendVerificationEmail(
     email: string, 
@@ -722,19 +755,21 @@ export class EmailService implements OnModuleInit {
     
     if (tenantId && tenantId !== 'system' && tenantId !== 'default') {
       try {
-        const tenant = await this.prisma.tenant.findFirst({
-          where: { OR: [{ id: tenantId }, { subdomain: tenantId }] },
-          select: { subdomain: true }
+        const tenant = await this.prisma.tenant.findUnique({
+          where: { id: tenantId },
+          select: { subdomain: true, name: true, logo: true }
         });
         
         if (tenant) {
           tenantSubdomain = tenant.subdomain;
           if (!customBrandName) brandName = tenant.name || brandName;
-          if (!customLogoUrl && (tenant as any).logo) brandLogo = (tenant as any).logo;
+          if (!customLogoUrl && tenant.logo) brandLogo = tenant.logo;
           isStoreBranded = true;
           
           // Construct tenant URL
-          if (process.env.NODE_ENV === 'development') {
+          // If in development mode AND frontend URL is localhost, use loopback address
+          // Otherwise use production domain logic (even if checking locally against prod)
+          if (process.env.NODE_ENV === 'development' && (process.env.FRONTEND_URL || '').includes('localhost')) {
             let port = '8080';
             try {
               const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
@@ -747,7 +782,10 @@ export class EmailService implements OnModuleInit {
             tenantUrl = `http://${tenantSubdomain}.localhost${portPart}`;
           } else {
             const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
-            const baseDomain = process.env.FRONTEND_URL ? new URL(process.env.FRONTEND_URL).hostname.replace('app.', '').replace('www.', '') : platformDomain;
+            // Use FRONTEND_URL base if available, strictly stripping subdomains to get root domain
+            const baseDomain = process.env.FRONTEND_URL 
+              ? new URL(process.env.FRONTEND_URL).hostname.replace('app.', '').replace('www.', '') 
+              : platformDomain;
             tenantUrl = `https://${tenantSubdomain}.${baseDomain}`;
           }
         }
@@ -764,7 +802,11 @@ export class EmailService implements OnModuleInit {
       // For Resend, use onboarding@resend.dev as safe default (works without domain verification)
       // Don't fall back to SMTP_USER which might be a Gmail address that Resend rejects
       const fromEmail = process.env.RESEND_FROM || 'onboarding@resend.dev';
-      const fromName = brandName; // Always use the resolved brand name (store name if available)
+      // Use the brand name directly - the SDK or nodemailer will handle quoting if needed
+      const fromName = brandName; 
+      
+      // Log exactly what we're trying to do
+      this.logger.log(`📧 Attempting to send verification email via Resend: ${fromName} <${fromEmail}> to ${email}`);
       
       // Determine if this is a Koun platform email
       const isKounPlatformEmail = !isStoreBranded && (brandName === platformName || brandName === 'Koun' || brandName === 'كون');
@@ -983,8 +1025,14 @@ export class EmailService implements OnModuleInit {
           html: htmlTemplate,
         });
         
-        const messageId = result?.id || result?.data?.id || 'resend';
-        this.logger.log(`✅ Email sent via Resend! Message ID: ${messageId}`);
+        if (!result || result.error) {
+          const errorMsg = result?.error?.message || 'Unknown Resend error or empty response';
+          this.logger.error(`❌ Resend API returned error: ${errorMsg}`);
+          throw new Error(errorMsg);
+        }
+        
+        const messageId = result.id || result.data?.id || 'resend';
+        this.logger.log(`✅ Email sent via Resend to ${email}! Message ID: ${messageId}`);
         
         return {
           messageId,
@@ -993,41 +1041,9 @@ export class EmailService implements OnModuleInit {
           code,
         };
       } catch (error: any) {
-        this.logger.error(`❌ Failed to send verification email to ${email}:`, error);
-        this.logger.error(`Error details - Code: ${(error as any).code}, Message: ${error.message}`);
-        
-        // In development, don't throw - let the code be displayed
-        if (process.env.NODE_ENV === 'development') {
-          this.logger.warn(`⚠️ Development mode: Verification code is ${code} (Resend failed: ${error.message})`);
-          return {
-            messageId: 'test',
-            previewUrl: '',
-            isTestEmail: true,
-            code,
-          };
-        }
-
-        if ((error as any).code === 'EAUTH') {
-          throw new Error('Email authentication failed. Please check SMTP credentials.');
-        } else if ((error as any).code === 'ECONNECTION') {
-          throw new Error('Failed to connect to SMTP server. Please check SMTP settings.');
-        } else if (error.message === 'Email sending timeout') {
-          throw new Error('Email sending timed out. The SMTP server is too slow or unreachable.');
-        }
-        
-        // Check for invalid email address error
-        if (error.message && (error.message.includes('Invalid login') || error.message.includes('Username and Password not accepted'))) {
-          throw new Error('SMTP Authentication failed. Please check your email and password.');
-        }
-        
-        // Check for recipient errors
-        if (error.response && (error.response.includes('550') || error.response.includes('does not exist'))) {
-          const errorMsg = `Invalid email address: ${email}`;
-          this.logger.error(errorMsg);
-          throw new Error(errorMsg);
-        }
-
-        throw new Error(`Failed to send verification email via Resend: ${error?.message || String(error)}`);
+        this.logger.error(`❌ Resend failure for ${email}: ${error.message || error}`);
+        this.logger.warn('⚠️ Falling back to SMTP for verification email...');
+        // Fall through to SMTP logic below
       }
     }
 
@@ -1044,9 +1060,11 @@ export class EmailService implements OnModuleInit {
       fromEmail = this.testAccountCredentials.user;
       fromName = process.env.SMTP_FROM_NAME || `${process.env.PLATFORM_NAME || 'Koun'} (Test)`;
     } else {
-      fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || 'noreply@kawn.com');
-      fromName = process.env.SMTP_FROM_NAME || (process.env.PLATFORM_NAME || 'Koun');
+      fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || 'noreply@saeaa.com');
+      fromName = brandName;
     }
+    
+    this.logger.log(`📧 Attempting to send verification email via SMTP: ${fromName} <${fromEmail}> to ${email}`);
     
     // Determine if this is a Koun platform email
     const isKounPlatformEmailSMTP = !isStoreBranded && (brandName === platformName || brandName === 'Koun' || brandName === 'كون');
@@ -1347,7 +1365,7 @@ export class EmailService implements OnModuleInit {
       // For Resend, use onboarding@resend.dev as safe default (works without domain verification)
       // Don't fall back to SMTP_USER which might be a Gmail address that Resend rejects
       const fromEmail = process.env.RESEND_FROM || 'onboarding@resend.dev';
-      let fromName = fromNameOverride || process.env.RESEND_FROM_NAME || process.env.SMTP_FROM_NAME || (process.env.PLATFORM_NAME || 'Koun');
+      let fromName = fromNameOverride || process.env.RESEND_FROM_NAME || process.env.SMTP_FROM_NAME || (process.env.PLATFORM_NAME || 'Saeaa');
       
       if (!fromNameOverride && tenantId && tenantId !== 'default' && tenantId !== 'system') {
         try {
@@ -1368,11 +1386,14 @@ export class EmailService implements OnModuleInit {
           text: text || html.replace(/<[^>]*>/g, ''),
         });
         const messageId = result?.id || result?.data?.id || 'resend';
+        if (result.error) throw new Error(result.error.message || 'Unknown Resend error');
+        
         this.logger.log(`Email sent via Resend to ${to}, Message ID: ${messageId}`);
         return { messageId, previewUrl: '' };
       } catch (error: any) {
-        this.logger.error(`Failed to send email via Resend to ${to}:`, error);
-        throw new Error(`Failed to send email via Resend: ${error?.message || error}`);
+        this.logger.error(`Failed to send email via Resend to ${to}: ${error.message || error}`);
+        this.logger.warn('⚠️ Falling back to SMTP...');
+        // Fall through to SMTP logic below
       }
     }
 
@@ -1397,10 +1418,10 @@ export class EmailService implements OnModuleInit {
     
     if (this.isTestAccount && this.testAccountCredentials) {
       fromEmail = this.testAccountCredentials.user;
-      fromName = fromName || process.env.SMTP_FROM_NAME || `${process.env.PLATFORM_NAME || 'Koun'} (Test)`;
+      fromName = fromName || process.env.SMTP_FROM_NAME || `${process.env.PLATFORM_NAME || 'Saeaa'} (Test)`;
     } else {
       fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || 'noreply@saeaa.com');
-      fromName = fromName || process.env.SMTP_FROM_NAME || (process.env.PLATFORM_NAME || 'Koun');
+      fromName = fromName || process.env.SMTP_FROM_NAME || (process.env.PLATFORM_NAME || 'Saeaa');
     }
     
     const mailOptions = {
@@ -1412,6 +1433,8 @@ export class EmailService implements OnModuleInit {
     };
 
     try {
+      this.logger.log(`📧 Sending email to ${to} (Subject: ${subject})...`);
+      
       // CPU Safety: Add timeout to prevent hanging
       const sendEmailWithTimeout = Promise.race([
         this.transporter.sendMail(mailOptions),
@@ -1421,20 +1444,29 @@ export class EmailService implements OnModuleInit {
       ]);
       
       const info: any = await sendEmailWithTimeout;
-      this.logger.log(`Email sent successfully to ${to}, Message ID: ${info.messageId}`);
+      this.logger.log(`✅ Email sent successfully to ${to}, Message ID: ${info.messageId}`);
+      
+      if (this.isTestAccount) {
+        this.logger.warn(`🔗 Test email preview: ${nodemailer.getTestMessageUrl(info)}`);
+      }
       
       return {
         messageId: info.messageId,
         previewUrl: nodemailer.getTestMessageUrl(info) || ''
       };
     } catch (error: any) {
-      this.logger.error(`Failed to send email to ${to}:`, error);
+      this.logger.error(`❌ Failed to send email to ${to}: ${error.message || error}`);
+      
+      // Provide actionable feedback for common SMTP errors
       if ((error as any).code === 'EAUTH') {
-        throw new Error('Email authentication failed. Please check SMTP credentials.');
+        this.logger.error('❌ AUTHENTICATION FAILED: Check SMTP_USER and SMTP_PASS (App Password)');
       } else if ((error as any).code === 'ECONNECTION') {
-        throw new Error('Failed to connect to SMTP server. Please check SMTP settings.');
+        this.logger.error('❌ CONNECTION FAILED: Check SMTP_HOST, SMTP_PORT and firewall');
+      } else if (error.message === 'Email sending timeout') {
+        this.logger.error('❌ TIMEOUT: SMTP server did not respond in time');
       }
-      throw new Error(`Failed to send email: ${error.message || error}`);
+      
+      throw error;
     }
   }
 
@@ -1550,31 +1582,43 @@ export class EmailService implements OnModuleInit {
       </html>
     `;
 
-    try {
-        if (this.useResend || process.env.RESEND_API_KEY) {
-             const resend = new Resend(process.env.RESEND_API_KEY);
-             const fromEmail = process.env.RESEND_FROM || 'onboarding@resend.dev';
-             const fromName = brandName; // Use store name instead of platform name
-             await (resend as any).emails.send({
-                from: `${fromName} <${fromEmail}>`,
-                to: email,
-                subject: `دعوة للانضمام إلى ${brandName}`,
-                html: htmlTemplate,
-             });
-        } else {
-             await this.initializationPromise;
-             await this.transporter.sendMail({
-                from: `"${brandName}" <${process.env.SMTP_FROM || 'noreply@saeaa.com'}>`,
-                to: email,
-                subject: `دعوة للانضمام إلى ${brandName}`,
-                html: htmlTemplate,
-             });
-        }
-        this.logger.log(`✅ Invitation email sent to ${email}`);
+    // If Resend is configured, use it first
+    if (this.useResend || process.env.RESEND_API_KEY) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const fromEmail = process.env.RESEND_FROM || 'onboarding@resend.dev';
+        const fromName = brandName; // Use store name instead of platform name
+        
+        const result: any = await (resend as any).emails.send({
+          from: `${fromName} <${fromEmail}>`,
+          to: email,
+          subject: `دعوة للانضمام إلى ${brandName}`,
+          html: htmlTemplate,
+        });
+        
+        if (result.error) throw new Error(result.error.message || 'Unknown Resend error');
+        this.logger.log(`✅ Invitation email sent via Resend to ${email}`);
         return true;
+      } catch (resendError: any) {
+        this.logger.error(`❌ Failed to send invitation email via Resend: ${resendError.message}`);
+        this.logger.warn('⚠️ Falling back to SMTP...');
+        // Fall through to SMTP logic below
+      }
+    }
+
+    try {
+      await this.initializationPromise;
+      await this.transporter.sendMail({
+        from: `"${brandName}" <${process.env.SMTP_FROM || 'noreply@saeaa.com'}>`,
+        to: email,
+        subject: `دعوة للانضمام إلى ${brandName}`,
+        html: htmlTemplate,
+      });
+      this.logger.log(`✅ Invitation email sent to ${email}`);
+      return true;
     } catch (e) {
-        this.logger.error(`❌ Failed to send invitation email: ${e}`);
-        return false;
+      this.logger.error(`❌ Failed to send invitation email: ${e}`);
+      return false;
     }
   }
 }

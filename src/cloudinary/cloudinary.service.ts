@@ -297,4 +297,77 @@ export class CloudinaryService {
       throw new Error(`Failed to list folders: ${error.message || 'Unknown error'}`);
     }
   }
+
+  /**
+   * Rename a Cloudinary resource
+   */
+  async renameImage(oldPublicId: string, newPublicId: string): Promise<any> {
+    try {
+      this.logger.log(`Renaming Cloudinary image from ${oldPublicId} to ${newPublicId}`);
+      return await cloudinary.uploader.rename(oldPublicId, newPublicId, {
+        overwrite: true,
+        invalidate: true,
+      });
+    } catch (error: any) {
+      this.logger.error(`Error renaming Cloudinary image: ${error.message}`, error.stack);
+      throw new Error(`Failed to rename image: ${error.message}`);
+    }
+  }
+
+  /**
+   * Extract public ID from a Cloudinary URL
+   */
+  extractPublicId(url: string): string | null {
+    if (!url || !url.includes('cloudinary.com')) return null;
+    
+    try {
+      // Standard Cloudinary URL structure: .../upload/v12345678/folder/public_id.jpg
+      const parts = url.split('/');
+      const uploadIndex = parts.indexOf('upload');
+      if (uploadIndex === -1) return null;
+      
+      // The public ID is everything after the version (v12345678) or after 'upload/' if no version
+      const afterUpload = parts.slice(uploadIndex + 1);
+      
+      // If the first part starts with 'v' and is followed by digits, it's a version number
+      if (afterUpload[0] && afterUpload[0].match(/^v\d+$/)) {
+        afterUpload.shift();
+      }
+      
+      const publicIdWithExtension = afterUpload.join('/');
+      // Remove file extension
+      return publicIdWithExtension.replace(/\.[^/.]+$/, "");
+    } catch (error) {
+      this.logger.warn(`Failed to extract public ID from URL: ${url}`);
+      return null;
+    }
+  }
+
+  /**
+   * Renames an image and returns the new secure URL
+   */
+  async renameAndGetNewSecureUrl(url: string, newName: string): Promise<string> {
+    if (!url || !url.includes('cloudinary.com')) return url;
+    
+    const publicId = this.extractPublicId(url);
+    if (!publicId) return url;
+
+    // Determine folder
+    const folderParts = publicId.split('/');
+    folderParts.pop(); // remove filename
+    const folder = folderParts.join('/');
+    
+    const newPublicId = folder ? `${folder}/${newName}` : newName;
+    
+    // If it's already named that way, or if renaming to the same name
+    if (publicId === newPublicId) return url;
+
+    try {
+      const result = await this.renameImage(publicId, newPublicId);
+      return result.secure_url;
+    } catch (error) {
+      this.logger.warn(`Renaming failed, returning original URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return url;
+    }
+  }
 }

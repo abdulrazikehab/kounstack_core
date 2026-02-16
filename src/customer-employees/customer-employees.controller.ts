@@ -18,7 +18,7 @@ import {
 import { CustomerEmployeesService, CreateCustomerEmployeeDto, UpdateCustomerEmployeeDto } from './customer-employees.service';
 import { JwtAuthGuard } from '../authentication/guard/jwt-auth.guard';
 
-@Controller('auth/customer-employees')
+@Controller('customer-employees')
 @UseGuards(JwtAuthGuard)
 export class CustomerEmployeesController {
   private readonly logger = new Logger(CustomerEmployeesController.name);

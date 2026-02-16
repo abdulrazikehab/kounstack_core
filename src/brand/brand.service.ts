@@ -1,6 +1,7 @@
 // apps/app-core/src/brand/brand.service.ts
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 export interface CreateBrandDto {
   name: string;
@@ -57,7 +58,10 @@ export interface UpdateBrandDto {
 export class BrandService {
   private readonly logger = new Logger(BrandService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudinaryService: CloudinaryService
+  ) {}
 
   async create(tenantId: string, data: CreateBrandDto) {
     if (!tenantId) {
@@ -144,6 +148,21 @@ export class BrandService {
       });
 
       this.logger.log(`Brand created: ${brand.id} for tenant ${tenantId}`);
+
+      // Handle logo renaming if it's a Cloudinary URL
+      if (brand.logo && brand.logo.includes('cloudinary.com')) {
+        const newLogoUrl = await this.cloudinaryService.renameAndGetNewSecureUrl(
+          brand.logo,
+          `brand_${brand.id}`
+        );
+        if (newLogoUrl !== brand.logo) {
+          return await this.prisma.brand.update({
+            where: { id: brand.id },
+            data: { logo: newLogoUrl },
+          });
+        }
+      }
+
       return brand;
     } catch (error: any) {
       // Handle unique constraint on (tenantId, code)
@@ -301,6 +320,21 @@ export class BrandService {
     });
 
     this.logger.log(`Brand updated: ${id}`);
+
+    // Handle logo renaming if it's a Cloudinary URL and was updated
+    if (updated.logo && updated.logo.includes('cloudinary.com')) {
+      const newLogoUrl = await this.cloudinaryService.renameAndGetNewSecureUrl(
+        updated.logo,
+        `brand_${updated.id}`
+      );
+      if (newLogoUrl !== updated.logo) {
+        return await this.prisma.brand.update({
+          where: { id: updated.id },
+          data: { logo: newLogoUrl },
+        });
+      }
+    }
+
     return updated;
   }
 

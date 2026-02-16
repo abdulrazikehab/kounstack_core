@@ -1,15 +1,12 @@
 import { Request } from 'express';
 
 export interface AuthenticatedRequest extends Request {
-  tenantId: string;
   user: {
-    sub?: string;
-    name?: string;
-    avatar?: string;
-    id: string;
-    tenantId: string;
-    role: string;
+    id(tenantId: string, userId: string, id: any): unknown;
+    sub: string;
     email: string;
+    role: string;
+    tenantId: string;
   };
-  tenantDetectedFrom?: string;
+  tenantId: string;
 }

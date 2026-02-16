@@ -1,7 +1,8 @@
-node_modules
-dist
-**/node_modules
-**/prisma/dev.db
-**/*.log
-.env
-.env.*
+node_modules/
+
+# Ignore build or dist folders
+dist/
+build/
+# Ignore environment files
+
+migrations/
