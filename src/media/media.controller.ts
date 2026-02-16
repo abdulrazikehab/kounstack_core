@@ -11,6 +11,7 @@ import {
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantRequiredGuard } from '../guard/tenant-required.guard';
+import { UserRole } from '../types/user-role.enum';
 
 @Controller('media')
 @UseGuards(JwtAuthGuard, TenantRequiredGuard)
@@ -64,8 +65,8 @@ export class MediaController {
       }
 
       const tenantId = req.tenantId;
-
       const tenantPrefix = `tenants/${tenantId}/`;
+      const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
 
       const parsedLimit = limit ? Math.min(parseInt(limit, 10), 100) : 20;
       const parsedSort = (sort === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc';
@@ -75,9 +76,13 @@ export class MediaController {
       if (folder !== undefined) {
         try {
           // SECURITY FIX: Enforce tenant isolation by prefixing the folder path
-          // Normalize path to prevent directory traversal (e.g. "../")
-          // We manually handle normalization to allow "tenants/ID/" structure
-          const rawPath = folder.startsWith('tenants/') ? folder : `${tenantPrefix}${folder}`;
+          // SUPER_ADMIN can bypass this if they provide a 'root/' prefix
+          let rawPath: string;
+          if (isSuperAdmin && folder.startsWith('root/')) {
+            rawPath = folder.substring(5); // Remove 'root/' prefix to get real Cloudinary root path
+          } else {
+            rawPath = folder.startsWith('tenants/') ? folder : `${tenantPrefix}${folder}`;
+          }
           
           // Basic traversal check
           if (rawPath.includes('..')) {
@@ -86,7 +91,8 @@ export class MediaController {
 
           const fullPath = rawPath;
           
-          if (!fullPath.startsWith(tenantPrefix)) {
+          // Only enforce tenantPrefix if NOT a super admin OR if not using the root/ bypass
+          if (!isSuperAdmin && !fullPath.startsWith(tenantPrefix)) {
             throw new BadRequestException("Access denied: You can only access media within your own tenant folder.");
           }
 
@@ -228,33 +234,41 @@ export class MediaController {
   async listFolders(@Request() req: any, @Query('root') root?: string) {
     try {
       const tenantId = req.tenantId;
-
       const tenantPrefix = `tenants/${tenantId}/`;
+      const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
       
       // SECURITY FIX: Enforce tenant isolation for listed folders
-      // If no root is specified, use the tenant's root folder.
-      // If a root is specified, ensure it sits inside the tenant's root.
-      const targetRoot = root 
-        ? (root.startsWith('tenants/') ? root : `${tenantPrefix}${root}`)
-        : `tenants/${tenantId}`; // Root doesn't need trailing slash for Cloudinary API call but check needs it
+      // SUPER_ADMIN can bypass this if they provide 'root' as the root
+      let targetRoot: string;
+      if (isSuperAdmin && root === 'root') {
+        targetRoot = ''; // Real root of Cloudinary
+      } else {
+        targetRoot = root 
+          ? (root.startsWith('tenants/') ? root : `${tenantPrefix}${root}`)
+          : `tenants/${tenantId}`;
+      }
 
-      // Ensure targetRoot is within the tenant's folder tree
-      // Use normalize to handle any weirdness and check against prefix
       // Basic traversal check
       if (targetRoot.includes('..')) {
          throw new BadRequestException("Invalid folder path: Traversal detected");
       }
       
-      if (targetRoot !== `tenants/${tenantId}` && !targetRoot.startsWith(tenantPrefix)) {
+      if (!isSuperAdmin && targetRoot !== `tenants/${tenantId}` && !targetRoot.startsWith(tenantPrefix)) {
         throw new BadRequestException("Access denied: Invalid folder path.");
       }
       
       const folders = await this.cloudinaryService.listFolders(targetRoot);
+      
+      // If we are listing the actual root for a super admin, prefix the folder names 
+      // with 'root/' so that subsequent getImages calls know to bypass tenant isolation.
+      const processedFolders = (isSuperAdmin && targetRoot === '') 
+        ? folders.map(f => `root/${f}`) 
+        : folders;
 
       return {
         success: true,
         root: targetRoot,
-        folders,
+        folders: processedFolders,
       };
     } catch (error: any) {
       this.logger.error(`Error listing folders${root ? ` under ${root}` : ' (default: Asus)'}:`, error);
