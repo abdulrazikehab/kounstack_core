@@ -102,6 +102,18 @@ export class JwtAuthGuard implements CanActivate {
       const requestTenantId = request.tenantId || null;
       let effectiveTenantId = null;
 
+      // Check if this is a tenant setup endpoint - allow bypassing tenant mismatch check
+      // Users should be able to create a new tenant even if logged into a different store
+      const isTenantSetupEndpoint = request.url?.includes('/tenants/setup') || 
+                                    request.path?.includes('/tenants/setup');
+      
+      if (isTenantSetupEndpoint) {
+        this.logger.debug(
+          `✅ Tenant setup endpoint detected - allowing tenant mismatch for user ${payload.email} ` +
+          `(Token Tenant: ${tenantIdFromToken || 'null'}, Request Tenant: ${requestTenantId || 'null'})`
+        );
+      }
+
       if (tenantIdFromToken) {
         // Method 1: Token has a specific tenant claim (Strongest Proof)
         // Ensure the token's tenant matches the requested store's tenant
@@ -111,7 +123,8 @@ export class JwtAuthGuard implements CanActivate {
             requestTenantId !== 'default' && 
             requestTenantId !== 'system' && 
             requestTenantId !== tenantIdFromToken && 
-            payload.role !== 'SUPER_ADMIN') {
+            payload.role !== 'SUPER_ADMIN' &&
+            !isTenantSetupEndpoint) { // Allow tenant setup to bypass this check
           
           this.logger.warn(
             `🚫 Unauthorized cross-tenant access attempt. ` +

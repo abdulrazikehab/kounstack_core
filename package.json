@@ -1,5 +1,5 @@
 {
-  "name": "app-auth",
+  "name": "app-core",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -43,6 +43,7 @@
     "ioredis": "^5.9.3",
     "kickbox": "^2.0.4",
     "nodemailer": "^7.0.10",
+    "openai": "^6.22.0",
     "otplib": "^13.1.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
