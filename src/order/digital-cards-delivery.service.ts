@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+﻿import { Injectable, Logger, BadRequestException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { UserService } from '../user/user.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CardInventoryService } from '../cards/card-inventory.service';
@@ -1475,7 +1475,7 @@ export class DigitalCardsDeliveryService {
         storeNameEn = platformName;
         senderName = platformName;
         storeLogo = process.env.PLATFORM_LOGO_URL; // Platform logo from env
-        fromEmail = `no-reply@${process.env.PLATFORM_DOMAIN || 'saeaa.com'}`;
+        fromEmail = `no-reply@${process.env.PLATFORM_DOMAIN || 'kounworld.com'}`;
         this.logger.log(`🏢 Using platform branding: ${platformName}`);
       } else {
         // Use store branding
@@ -1520,7 +1520,7 @@ export class DigitalCardsDeliveryService {
           storeLogo = storeLogo.startsWith('/') ? `${baseUrl}${storeLogo}` : `${baseUrl}/${storeLogo}`;
         }
         
-        const emailDomain = `${tenant?.subdomain || 'store'}.${process.env.PLATFORM_DOMAIN || 'saeaa.com'}`;
+        const emailDomain = `${tenant?.subdomain || 'store'}.${process.env.PLATFORM_DOMAIN || 'kounworld.com'}`;
         fromEmail = `no-reply@${emailDomain}`;
         this.logger.log(`🏪 Using store branding - Name: ${storeNameEn}, Sender: ${senderName}, Logo: ${storeLogo || 'NOT FOUND'}`);
         if (!storeLogo) {
@@ -1548,7 +1548,7 @@ export class DigitalCardsDeliveryService {
           .update(`${orderId}:text`)
           .digest('hex');
           
-      const appDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+      const appDomain = process.env.PLATFORM_DOMAIN || 'kounworld.com';
       // Basic URL construction
       const protocol = appDomain.includes('localhost') ? 'http' : 'https';
       const subdomain = tenant?.subdomain || 'www';

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, ForbiddenException, Logger, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+﻿import { Injectable, UnauthorizedException, ConflictException, BadRequestException, ForbiddenException, Logger, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -840,7 +840,7 @@ export class AuthService {
       // Extract subdomain from domain (e.g., "market.kawn.com" -> "market")
       if (tenantDomain.includes('.localhost')) {
         resolvedSubdomain = tenantDomain.split('.localhost')[0];
-      } else if (tenantDomain.endsWith('.saeaa.com') || tenantDomain.endsWith('.saeaa.net')) {
+      } else if (tenantDomain.endsWith('.kounworld.com') || tenantDomain.endsWith('.saeaa.net')) {
         const parts = tenantDomain.split('.');
         if (parts.length >= 3 && parts[0] !== 'www' && parts[0] !== 'app') {
           resolvedSubdomain = parts[0];

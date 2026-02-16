@@ -1,4 +1,4 @@
-import { Injectable, Logger, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, Logger, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { invalidateDomainCache } from '../config/security.config';
@@ -41,7 +41,7 @@ export class DomainService {
       const baseDomain = domainParts.slice(1).join('.');
       
       // Check if this matches a platform domain pattern
-      const platformDomain = this.configService.get<string>('PLATFORM_DOMAIN') || 'saeaa.com';
+      const platformDomain = this.configService.get<string>('PLATFORM_DOMAIN') || 'kounworld.com';
       const secondaryDomain = this.configService.get<string>('PLATFORM_SECONDARY_DOMAIN') || 'saeaa.net';
       
       const isPlatformDomain = baseDomain === platformDomain || 
@@ -178,7 +178,7 @@ export class DomainService {
   private async checkDnsCnameRecord(domain: string): Promise<boolean> {
     try {
         const { resolveCname } = await import('dns/promises');
-        const platformDomain = this.configService.get<string>('PLATFORM_DOMAIN') || 'saeaa.com';
+        const platformDomain = this.configService.get<string>('PLATFORM_DOMAIN') || 'kounworld.com';
         const secondaryDomain = this.configService.get<string>('PLATFORM_SECONDARY_DOMAIN') || 'saeaa.net';
         
         const records = await resolveCname(domain);

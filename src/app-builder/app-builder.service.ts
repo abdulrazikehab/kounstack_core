@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -571,7 +571,7 @@ export class AppBuilderService {
         capConfig.appId = packageId;
         capConfig.server = {
           ...capConfig.server,
-          url: config.storeUrl, // e.g. https://subdomain.saeaa.com
+          url: config.storeUrl, // e.g. https://subdomain.kounworld.com
           cleartext: true,      // Allow http for local testing
         };
 

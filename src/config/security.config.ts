@@ -1,4 +1,4 @@
-import { HelmetOptions } from 'helmet';
+﻿import { HelmetOptions } from 'helmet';
 import { PrismaClient } from '@prisma/client';
 
 // Lazy-instantiated PrismaClient for CORS custom domain checks
@@ -56,7 +56,7 @@ export const securityConfig = {
       // Get allowed origins from environment or use defaults
       const envOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()) : [];
       
-      const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+      const platformDomain = process.env.PLATFORM_DOMAIN || 'kounworld.com';
       const secondaryDomain = process.env.PLATFORM_SECONDARY_DOMAIN || 'saeaa.net';
       
       const allowedOrigins = [
@@ -85,11 +85,11 @@ export const securityConfig = {
         'https://www.kawn.net',
         'https://app.kawn.com',
         'https://app.kawn.net',
-        'https://saeaa.com',
+        'https://kounworld.com',
         'https://saeaa.net',
-        'https://www.saeaa.com',
+        'https://www.kounworld.com',
         'https://www.saeaa.net',
-        'https://app.saeaa.com',
+        'https://app.kounworld.com',
         'https://app.saeaa.net',
       ].filter(Boolean);
 

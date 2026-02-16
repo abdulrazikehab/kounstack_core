@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -149,7 +149,7 @@ export class TenantService {
     if (customDomain) return customDomain.tenantId;
 
     // 2. Check if it's the main domain - should be handled as custom domain, but fallback
-    const platformDomain = this.configService.get<string>('PLATFORM_DOMAIN') || 'saeaa.com';
+    const platformDomain = this.configService.get<string>('PLATFORM_DOMAIN') || 'kounworld.com';
     const secondaryDomain = this.configService.get<string>('PLATFORM_SECONDARY_DOMAIN') || 'saeaa.net';
 
     const mainDomains = [

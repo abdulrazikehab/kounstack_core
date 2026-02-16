@@ -63,7 +63,7 @@ export class AuthController {
 
       // Node's cookie lib requires a bare host name with at least one dot and no protocol/port
       if (hasProtocol || hasSlash || hasSpace || hasPort || !hasDot) {
-        const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+        const platformDomain = process.env.PLATFORM_DOMAIN || 'kounworld.com';
         const secondaryDomain = process.env.PLATFORM_SECONDARY_DOMAIN || 'saeaa.net';
         this.logger.warn(
           `Invalid COOKIE_DOMAIN value "${cookieDomain}" — skipping domain on auth cookies. ` +
@@ -95,7 +95,7 @@ export class AuthController {
     this.logger.log(`âœ… GET /auth/reset-password called - Token: ${token ? 'present' : 'missing'}, URL: ${req?.url}`);
     
     // Get frontend URL from environment
-    const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+    const platformDomain = process.env.PLATFORM_DOMAIN || 'kounworld.com';
     const frontendUrl = process.env.FRONTEND_URL || `https://${platformDomain}`;
     const cleanFrontendUrl = frontendUrl.replace(/\/+$/, ''); // Remove trailing slashes
     

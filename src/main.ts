@@ -1,4 +1,4 @@
-import { NestFactory } from '@nestjs/core';
+﻿import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import * as dotenv from 'dotenv';
@@ -56,11 +56,11 @@ async function bootstrap() {
       'http://127.0.0.1:5173',
       'http://127.0.0.1:8080',
       'http://127.0.0.1:8080',
-      'https://saeaa.com',
+      'https://kounworld.com',
       'https://saeaa.net',
-      'https://www.saeaa.com',
+      'https://www.kounworld.com',
       'https://www.saeaa.net',
-      'https://app.saeaa.com',
+      'https://app.kounworld.com',
       'https://app.saeaa.net',
       'https://kawn.com',
       'https://kawn.net',
@@ -129,7 +129,7 @@ async function bootstrap() {
           return callback(null, origin);
         }
 
-        // Allow subdomains of kawn.com and kawn.net and saeaa.com and saeaa.net
+        // Allow subdomains of kawn.com and kawn.net and kounworld.com and saeaa.net
         const isAllowedSubdomain = /^https:\/\/([\w-]+\.)?(saeaa\.com|saeaa\.net|kawn\.com|kawn\.net)$/.test(origin);
         if (isAllowedSubdomain) {
           return callback(null, origin);

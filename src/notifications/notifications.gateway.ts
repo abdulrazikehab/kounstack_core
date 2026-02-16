@@ -1,4 +1,4 @@
-import {
+﻿import {
   WebSocketGateway,
   WebSocketServer,
   OnGatewayConnection,
@@ -12,9 +12,9 @@ import { Logger } from '@nestjs/common';
   namespace: '/notifications',
   cors: { 
     origin: [
-      'https://saeaa.com', 'https://saeaa.net',
-      'https://www.saeaa.com', 'https://www.saeaa.net',
-      'https://app.saeaa.com', 'https://app.saeaa.net',
+      'https://kounworld.com', 'https://saeaa.net',
+      'https://www.kounworld.com', 'https://www.saeaa.net',
+      'https://app.kounworld.com', 'https://app.saeaa.net',
       'https://kawn.com', 'https://kawn.net',
       'http://localhost:3000', 'http://localhost:4173', 'http://localhost:5173', 'http://localhost:8080'
     ],

@@ -1,4 +1,4 @@
-// apps/app-core/src/order/order.controller.ts
+﻿// apps/app-core/src/order/order.controller.ts
 import {
   Controller,
   Get,
@@ -195,7 +195,7 @@ export class OrderController {
       const tenantDomainHeader = req.headers['x-tenant-domain'] as string;
       if (tenantDomainHeader) {
         const domain = tenantDomainHeader.split(':')[0];
-        const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+        const platformDomain = process.env.PLATFORM_DOMAIN || 'kounworld.com';
         const secondaryDomain = process.env.PLATFORM_SECONDARY_DOMAIN || 'saeaa.net';
         
         if (domain.includes('.localhost')) subdomain = domain.split('.localhost')[0];

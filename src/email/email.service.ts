@@ -1,4 +1,4 @@
-// apps/app-auth/src/email/email.service.ts
+﻿// apps/app-auth/src/email/email.service.ts
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { Resend } from 'resend';
@@ -303,7 +303,7 @@ export class EmailService implements OnModuleInit {
       fromName = process.env.SMTP_FROM_NAME || `${platformName} (Test)`;
     } else {
       const platformName = process.env.PLATFORM_NAME || 'Saeaa';
-      const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+      const platformDomain = process.env.PLATFORM_DOMAIN || 'kounworld.com';
       fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || `noreply@${platformDomain}`);
       fromName = process.env.SMTP_FROM_NAME || platformName;
     }
@@ -361,7 +361,7 @@ export class EmailService implements OnModuleInit {
     
     // Fetch tenant branding if tenantId is provided
     const platformName = process.env.PLATFORM_NAME || 'Saeaa';
-    const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+    const platformDomain = process.env.PLATFORM_DOMAIN || 'kounworld.com';
     let brandName = platformName;
     let brandLogo = process.env.EMAIL_LOGO_URL || 
       (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/branding/logo.png` :
@@ -381,7 +381,7 @@ export class EmailService implements OnModuleInit {
     }
 
     // Build reset link
-    const platformDomain2 = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+    const platformDomain2 = process.env.PLATFORM_DOMAIN || 'kounworld.com';
     let frontendUrl = process.env.FRONTEND_URL || `https://${platformDomain2}`;
     frontendUrl = frontendUrl.replace(/\/+$/, '');
     
@@ -677,7 +677,7 @@ export class EmailService implements OnModuleInit {
       fromEmail = this.testAccountCredentials.user;
       fromName = brandName + ' (Test)';
     } else {
-      fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || 'noreply@saeaa.com');
+      fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || 'noreply@kounworld.com');
       fromName = brandName;
     }
     
@@ -739,7 +739,7 @@ export class EmailService implements OnModuleInit {
   ): Promise<{ messageId: string; previewUrl: string; isTestEmail?: boolean; code?: string }> {
     
     const platformName = process.env.PLATFORM_NAME || 'Saeaa';
-    const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+    const platformDomain = process.env.PLATFORM_DOMAIN || 'kounworld.com';
     const platformLogo = process.env.EMAIL_LOGO_URL || 
       (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/branding/logo.png` :
       `https://${platformDomain}/branding/logo.png`);
@@ -751,7 +751,7 @@ export class EmailService implements OnModuleInit {
 
     // Get tenant URL for the CTA button (still useful for directing user to correct store)
     let tenantSubdomain = 'default';
-    let tenantUrl = process.env.FRONTEND_URL || 'https://saeaa.com';
+    let tenantUrl = process.env.FRONTEND_URL || 'https://kounworld.com';
     
     if (tenantId && tenantId !== 'system' && tenantId !== 'default') {
       try {
@@ -781,7 +781,7 @@ export class EmailService implements OnModuleInit {
             const portPart = port && port !== '80' && port !== '443' ? `:${port}` : '';
             tenantUrl = `http://${tenantSubdomain}.localhost${portPart}`;
           } else {
-            const platformDomain = process.env.PLATFORM_DOMAIN || 'saeaa.com';
+            const platformDomain = process.env.PLATFORM_DOMAIN || 'kounworld.com';
             // Use FRONTEND_URL base if available, strictly stripping subdomains to get root domain
             const baseDomain = process.env.FRONTEND_URL 
               ? new URL(process.env.FRONTEND_URL).hostname.replace('app.', '').replace('www.', '') 
@@ -1060,7 +1060,7 @@ export class EmailService implements OnModuleInit {
       fromEmail = this.testAccountCredentials.user;
       fromName = process.env.SMTP_FROM_NAME || `${process.env.PLATFORM_NAME || 'Koun'} (Test)`;
     } else {
-      fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || 'noreply@saeaa.com');
+      fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || 'noreply@kounworld.com');
       fromName = brandName;
     }
     
@@ -1420,7 +1420,7 @@ export class EmailService implements OnModuleInit {
       fromEmail = this.testAccountCredentials.user;
       fromName = fromName || process.env.SMTP_FROM_NAME || `${process.env.PLATFORM_NAME || 'Saeaa'} (Test)`;
     } else {
-      fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || 'noreply@saeaa.com');
+      fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.PLATFORM_EMAIL || 'noreply@kounworld.com');
       fromName = fromName || process.env.SMTP_FROM_NAME || (process.env.PLATFORM_NAME || 'Saeaa');
     }
     
@@ -1609,7 +1609,7 @@ export class EmailService implements OnModuleInit {
     try {
       await this.initializationPromise;
       await this.transporter.sendMail({
-        from: `"${brandName}" <${process.env.SMTP_FROM || 'noreply@saeaa.com'}>`,
+        from: `"${brandName}" <${process.env.SMTP_FROM || 'noreply@kounworld.com'}>`,
         to: email,
         subject: `دعوة للانضمام إلى ${brandName}`,
         html: htmlTemplate,

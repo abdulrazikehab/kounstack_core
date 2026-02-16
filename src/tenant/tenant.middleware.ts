@@ -1,4 +1,4 @@
-import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
+﻿import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -144,7 +144,7 @@ export class TenantMiddleware implements NestMiddleware {
     }
     
     // Dynamic Domain Resolution
-    const platformDomain = this.configService.get<string>('PLATFORM_DOMAIN') || 'saeaa.com';
+    const platformDomain = this.configService.get<string>('PLATFORM_DOMAIN') || 'kounworld.com';
     const secondaryDomain = this.configService.get<string>('PLATFORM_SECONDARY_DOMAIN') || 'saeaa.net';
     
     // Handle main domains - should NOT be treated as subdomain
@@ -205,7 +205,7 @@ export class TenantMiddleware implements NestMiddleware {
       secondaryDomain, `app.${secondaryDomain}`,
       "koun.com", "app.koun.com", "koun.net", "app.koun.net", 
       "kawn.com", "app.kawn.com", "kawn.net", "app.kawn.net", 
-      "saeaa.com", "app.saeaa.com", "saeaa.net", "app.saeaa.net", 
+      "kounworld.com", "app.kounworld.com", "saeaa.net", "app.saeaa.net", 
       "saa'ah.com", "app.saa'ah.com"
     ]; 
     for (const domain of platformDomains) {
