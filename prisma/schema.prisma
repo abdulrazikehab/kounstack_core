@@ -43,7 +43,7 @@ model User {
   userTenants        UserTenant[]
   tenant             Tenant?               @relation("UserActiveTenant", fields: [tenantId], references: [id])
 
-  @@index([tenantId], map: "users_tenantId_fkey")
+  @@index([tenantId], map: "users_tenantId_idx")
   @@index([username])
   @@map("users")
 }
@@ -80,7 +80,7 @@ model RefreshToken {
   user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  @@index([userId], map: "refresh_tokens_userId_fkey")
+  @@index([userId], map: "refresh_tokens_userId_idx")
   @@index([customerId])
   @@map("refresh_tokens")
 }
@@ -96,7 +96,7 @@ model LoginAttempt {
   user          User?     @relation(fields: [userId], references: [id])
 
   @@unique([ipAddress, email])
-  @@index([userId], map: "login_attempts_userId_fkey")
+  @@index([userId], map: "login_attempts_userId_idx")
   @@map("login_attempts")
 }
 
@@ -108,11 +108,11 @@ model PasswordReset {
   used       Boolean  @default(false)
   createdAt  DateTime @default(now())
   userId     String?
-  signupData String?  @db.LongText
+  signupData String?  @db.Text
   user       User?    @relation(fields: [userId], references: [id])
 
   @@index([email, code])
-  @@index([userId], map: "password_resets_userId_fkey")
+  @@index([userId], map: "password_resets_userId_idx")
   @@map("password_resets")
 }
 
@@ -127,7 +127,7 @@ model StaffPermission {
   user       User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, tenantId, permission])
-  @@index([tenantId], map: "staff_permissions_tenantId_fkey")
+  @@index([tenantId], map: "staff_permissions_tenantId_idx")
   @@map("staff_permissions")
 }
 
@@ -138,11 +138,11 @@ model AuditLog {
   action       String
   resourceId   String?
   resourceType String?
-  oldValues    String?  @db.LongText
-  newValues    String?  @db.LongText
+  oldValues    String?  @db.Text
+  newValues    String?  @db.Text
   ipAddress    String?
   userAgent    String?
-  metadata     String?  @db.LongText
+  metadata     String?  @db.Text
   createdAt    DateTime @default(now())
   tenant       Tenant?  @relation(fields: [tenantId], references: [id])
   user         User?    @relation(fields: [userId], references: [id])
@@ -150,7 +150,7 @@ model AuditLog {
   @@index([tenantId, action])
   @@index([resourceType, resourceId])
   @@index([createdAt])
-  @@index([userId], map: "audit_logs_userId_fkey")
+  @@index([userId], map: "audit_logs_userId_idx")
   @@map("audit_logs")
 }
 
@@ -167,7 +167,7 @@ model RateLimit {
   @@unique([key, type])
   @@index([expiresAt])
   @@index([type, lastAttempt])
-  @@index([userId], map: "rate_limits_userId_fkey")
+  @@index([userId], map: "rate_limits_userId_idx")
   @@map("rate_limits")
 }
 
@@ -180,7 +180,7 @@ model SecurityEvent {
   ipAddress   String?
   userAgent   String?
   description String
-  metadata    String?           @db.LongText
+  metadata    String?           @db.Text
   country     String?
   countryCode String?
   city        String?
@@ -199,8 +199,8 @@ model SecurityEvent {
 
   @@index([type, severity])
   @@index([createdAt])
-  @@index([tenantId], map: "security_events_tenantId_fkey")
-  @@index([userId], map: "security_events_userId_fkey")
+  @@index([tenantId], map: "security_events_tenantId_idx")
+  @@index([userId], map: "security_events_userId_idx")
   @@map("security_events")
 }
 
@@ -231,7 +231,7 @@ model MerchantLimits {
   maxSinglePayment      Float    @default(5000)
   maxDailyVolume        Float    @default(20000)
   maxMonthlyVolume      Float    @default(100000)
-  allowedPaymentMethods String   @db.LongText
+  allowedPaymentMethods String   @db.Text
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   tenant                Tenant   @relation(fields: [tenantId], references: [id])
@@ -248,7 +248,7 @@ model Customer {
   lastName        String?
   password        String?
   recoveryId      String?            @unique
-  metadata        String?            @db.LongText
+  metadata        String?            @db.Text
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   inviteExpiresAt DateTime?
