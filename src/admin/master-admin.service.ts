@@ -1530,6 +1530,12 @@ export class MasterAdminService {
         allowSignups: true,
         allowLogins: true,
       },
+      celebrations: {
+        items: [
+          { id: 'ramadan', enabled: true, titleAr: 'رمضان مبارك', titleEn: 'Ramadan Mubarak', messageAr: 'كل عام وأنتم بخير. نتمنى لكم شهراً مباركاً من فريق كون.', messageEn: 'Wishing you a blessed month from the Koun team.', imageUrl: '', animationUrl: '' },
+          { id: 'eid', enabled: true, titleAr: 'عيد مبارك', titleEn: 'Eid Mubarak', messageAr: 'كل عام وأنتم بخير.', messageEn: 'Wishing you joy and prosperity.', imageUrl: '', animationUrl: '' },
+        ],
+      },
     };
   }
 
@@ -1538,25 +1544,27 @@ export class MasterAdminService {
       where: { key: 'platform_details' },
     });
 
+    const existingValue = (existingConfig?.value as Record<string, unknown>) || {};
+    const merged = { ...existingValue, ...data };
+
     if (existingConfig) {
       return this.prisma.platformConfig.update({
         where: { key: 'platform_details' },
         data: {
-          value: data,
+          value: merged,
           updatedAt: new Date(),
           updatedBy: 'admin',
         },
       });
-    } else {
-      return this.prisma.platformConfig.create({
-        data: {
-          key: 'platform_details',
-          value: data,
-          category: 'platform',
-          updatedBy: 'admin',
-        },
-      });
     }
+    return this.prisma.platformConfig.create({
+      data: {
+        key: 'platform_details',
+        value: merged,
+        category: 'platform',
+        updatedBy: 'admin',
+      },
+    });
   }
 
 
@@ -1639,11 +1647,17 @@ export class MasterAdminService {
 
   // ==================== CLOUDINARY ACCESS MANAGEMENT ====================
 
+  /** Auth app uses global prefix "auth", so base must end with /auth when using port-only URL. */
+  private getAuthServiceBaseUrl(): string {
+    const raw = (process.env.AUTH_API_URL || process.env.AUTH_SERVICE_URL || 'http://localhost:3001').replace(/\/+$/, '');
+    if (raw.includes('/auth') || raw.endsWith('/auth')) return raw;
+    return `${raw}/auth`;
+  }
+
   async getCloudinaryAccessUsers() {
     try {
-      // Call auth service to get users with Cloudinary access
-      const authServiceUrl = (process.env.AUTH_API_URL || process.env.AUTH_SERVICE_URL || 'http://localhost:3001').replace(/\/+$/, '');
-      const url = `${authServiceUrl}/admin/cloudinary-access`;
+      const authBase = this.getAuthServiceBaseUrl();
+      const url = `${authBase}/admin/cloudinary-access`;
       
       // SECURITY FIX: Get admin API key from database or environment (no fallback)
       const adminApiKeyData = await this.getAdminApiKey();
@@ -1675,8 +1689,8 @@ export class MasterAdminService {
 
   async updateCloudinaryAccess(userIds: string[], hasAccess: boolean, grantedBy: string) {
     try {
-      const authServiceUrl = (process.env.AUTH_API_URL || process.env.AUTH_SERVICE_URL || 'http://localhost:3001').replace(/\/+$/, '');
-      const url = `${authServiceUrl}/admin/cloudinary-access`;
+      const authBase = this.getAuthServiceBaseUrl();
+      const url = `${authBase}/admin/cloudinary-access`;
       
       // SECURITY FIX: Get admin API key from database or environment (no fallback)
       const adminApiKeyData = await this.getAdminApiKey();
@@ -1714,8 +1728,8 @@ export class MasterAdminService {
 
   async getUserCloudinaryAccess(userId: string) {
     try {
-      const authServiceUrl = (process.env.AUTH_API_URL || process.env.AUTH_SERVICE_URL || 'http://localhost:3001').replace(/\/+$/, '');
-      const url = `${authServiceUrl}/admin/cloudinary-access/${userId}`;
+      const authBase = this.getAuthServiceBaseUrl();
+      const url = `${authBase}/admin/cloudinary-access/${userId}`;
       
       // SECURITY FIX: Get admin API key from database or environment (no fallback)
       const adminApiKeyData = await this.getAdminApiKey();

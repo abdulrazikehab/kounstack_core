@@ -1,4 +1,4 @@
-﻿import { NestFactory } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import * as dotenv from 'dotenv';
@@ -77,16 +77,17 @@ async function bootstrap() {
       if (req.method === 'OPTIONS') {
         // Set CORS headers for preflight
         const origin = req.headers.origin;
-        // SECURITY FIX: Don't allow * in production
+        // SECURITY FIX: Never use wildcard (*) for credentialed requests.
+        // Only echo back a specific, validated origin.
         if (origin) {
           // Validate origin
-          if (allowedOriginsList.includes(origin) || /^https:\/\/([\w-]+\.)?(saeaa\.com|saeaa\.net|kawn\.com|kawn\.net)$/.test(origin)) {
-            res.setHeader('Access-Control-Allow-Origin', origin);
-          } else if (process.env.NODE_ENV === 'development') {
+          if (
+            allowedOriginsList.includes(origin) ||
+            /^https:\/\/([\w-]+\.)?(saeaa\.com|saeaa\.net|kawn\.com|kawn\.net)$/.test(origin) ||
+            process.env.NODE_ENV === 'development'
+          ) {
             res.setHeader('Access-Control-Allow-Origin', origin);
           }
-        } else if (process.env.NODE_ENV === 'development') {
-          res.setHeader('Access-Control-Allow-Origin', '*');
         }
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
         res.setHeader('Access-Control-Allow-Headers', [

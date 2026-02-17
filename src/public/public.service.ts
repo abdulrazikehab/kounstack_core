@@ -732,4 +732,62 @@ export class PublicService {
       // Don't throw - this is a non-critical operation that shouldn't break the request
     }
   }
+
+  /** Default celebrations config for banner/landing when none is stored */
+  private static getDefaultCelebrations() {
+    return {
+      items: [
+        {
+          id: 'ramadan',
+          enabled: true,
+          titleAr: 'رمضان مبارك',
+          titleEn: 'Ramadan Mubarak',
+          messageAr: 'كل عام وأنتم بخير. نتمنى لكم شهراً مباركاً من فريق كون.',
+          messageEn: 'Wishing you a blessed month from the Koun team.',
+          imageUrl: '',
+          animationUrl: '',
+        },
+        {
+          id: 'eid',
+          enabled: true,
+          titleAr: 'عيد مبارك',
+          titleEn: 'Eid Mubarak',
+          messageAr: 'كل عام وأنتم بخير.',
+          messageEn: 'Wishing you joy and prosperity.',
+          imageUrl: '',
+          animationUrl: '',
+        },
+      ],
+    };
+  }
+
+  /**
+   * Get celebrations config for landing/dashboard banners (public, no auth).
+   * Reads from platform_details.celebrations or returns defaults.
+   */
+  async getCelebrations(): Promise<{ items: Array<{
+    id: string;
+    enabled: boolean;
+    titleAr: string;
+    titleEn: string;
+    messageAr: string;
+    messageEn: string;
+    imageUrl: string;
+    animationUrl: string;
+  }> }> {
+    try {
+      const row = await this.prisma.platformConfig.findUnique({
+        where: { key: 'platform_details' },
+      });
+      const value = row?.value as Record<string, unknown> | null;
+      const celebrations = value?.celebrations as { items?: unknown[] } | undefined;
+      if (celebrations && Array.isArray(celebrations.items) && celebrations.items.length > 0) {
+        return { items: celebrations.items as any };
+      }
+      return PublicService.getDefaultCelebrations();
+    } catch (error) {
+      this.logger.warn('Failed to load celebrations config, using defaults:', error);
+      return PublicService.getDefaultCelebrations();
+    }
+  }
 }

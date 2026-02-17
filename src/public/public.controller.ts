@@ -99,6 +99,15 @@ export class PublicController {
   }
 
   /**
+   * Get celebrations config for landing/dashboard (image, animation, messages).
+   * Used by CelebrationsBanner; no auth required.
+   */
+  @Get('celebrations')
+  async getCelebrations() {
+    return this.publicService.getCelebrations();
+  }
+
+  /**
    * Get published pages for storefront navigation
    * Returns only published pages that should appear in navigation
    */

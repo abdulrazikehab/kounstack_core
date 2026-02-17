@@ -150,14 +150,24 @@ export class CloudinaryService {
         sort = 'desc',
       } = options;
 
-      // Use resources API to list resources in folder
-      const result: any = await cloudinary.api.resources({
+      // Use resources API to list resources.
+      // IMPORTANT:
+      // - When folder is a non-empty string, we use it as a prefix so we only
+      //   fetch assets inside that folder (e.g. "products", "tenants/XYZ").
+      // - When folder is an empty string (root), we MUST NOT send a prefix,
+      //   otherwise some Cloudinary accounts return an empty result.
+      const apiOptions: any = {
         type: 'upload',
         resource_type: resourceType,
-        prefix: folder,
         max_results: Math.min(limit, 100),
         next_cursor: nextCursor,
-      });
+      };
+
+      if (folder) {
+        apiOptions.prefix = folder;
+      }
+
+      const result: any = await cloudinary.api.resources(apiOptions);
 
       const images = result.resources || [];
       const totalCount = result.total_count || images.length;

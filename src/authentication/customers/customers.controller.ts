@@ -455,7 +455,13 @@ export class CustomersController {
     @Request() req: any,
     @Param('id') customerId: string,
   ) {
-    return this.customersService.deleteCustomer(req.user.tenantId, customerId);
+    this.logger.log(`🗑️ Delete customer request: customerId=${customerId}, tenantId=${req.user?.tenantId}`);
+    try {
+      return await this.customersService.deleteCustomer(req.user.tenantId, customerId);
+    } catch (error: any) {
+      this.logger.error(`❌ Failed to delete customer ${customerId}: ${error?.message}`, error?.stack);
+      throw error;
+    }
   }
 
   @Post(':id/force-logout')

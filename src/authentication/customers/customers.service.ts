@@ -1498,6 +1498,8 @@ export class CustomersService {
   }
 
   async deleteCustomer(tenantId: string, customerId: string) {
+    this.logger.log(`🔍 Checking customer for deletion: customerId=${customerId}, tenantId=${tenantId}`);
+    
     // Verify customer exists and belongs to tenant
     const existingCustomer = await this.prisma.customer.findFirst({
       where: {
@@ -1508,7 +1510,19 @@ export class CustomersService {
     });
 
     if (!existingCustomer) {
-      throw new NotFoundException('Customer not found');
+      // Check if customer exists in a different tenant
+      const customerInOtherTenant = await this.prisma.customer.findFirst({
+        where: { id: customerId },
+        select: { tenantId: true },
+      });
+      
+      if (customerInOtherTenant) {
+        this.logger.warn(`⚠️ Customer ${customerId} exists but belongs to tenant ${customerInOtherTenant.tenantId}, not ${tenantId}`);
+        throw new NotFoundException(`Customer not found in your store. This customer belongs to a different store.`);
+      } else {
+        this.logger.warn(`⚠️ Customer ${customerId} does not exist in any tenant`);
+        throw new NotFoundException(`Customer not found. The customer may have already been deleted.`);
+      }
     }
 
     // Invalidate all refresh tokens for this customer before deletion
@@ -1521,8 +1535,9 @@ export class CustomersService {
       where: { id: customerId },
     });
 
-    this.logger.log(`âœ… Customer deleted: ${customerId}`);
-    return { message: 'Customer deleted successfully' };
+    this.logger.log(`✅ Customer deleted: ${customerId}`);
+    // Return null for NO_CONTENT response (controller sets HttpStatus.NO_CONTENT)
+    return null;
   }
 
   async forceLogoutCustomer(tenantId: string, customerId: string) {

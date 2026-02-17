@@ -41,6 +41,8 @@ import { AppController } from './app.controller';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ActionLoggingInterceptor } from './common/interceptors/action-logging.interceptor';
 import { TenantMiddleware } from './tenant/tenant.middleware';
+import { MediaModule } from './media/media.module';
+import { MasterAdminModule } from './admin/master-admin.module';
 
 @Module({
   imports: [
@@ -88,6 +90,8 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     IntegrationsModule,
     KycSettingsModule,
     ChatModule,
+    MediaModule,
+    MasterAdminModule,
   ],
   controllers: [AppController, AdminController],
   providers: [

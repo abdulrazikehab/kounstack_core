@@ -67,6 +67,12 @@ export class MediaController {
       const tenantId = req.tenantId;
       const tenantPrefix = `tenants/${tenantId}/`;
       const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
+      // In non-production environments we allow an optional dev bypass
+      // so developers can browse the global Cloudinary library without
+      // having to mirror folders under tenants/{tenantId}/.
+      const devBypassTenant =
+        process.env.NODE_ENV !== 'production' &&
+        process.env.CLOUDINARY_DEV_ALLOW_GLOBAL !== 'false';
 
       const parsedLimit = limit ? Math.min(parseInt(limit, 10), 100) : 20;
       const parsedSort = (sort === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc';
@@ -79,8 +85,13 @@ export class MediaController {
           // SUPER_ADMIN can bypass this if they provide a 'root/' prefix
           let rawPath: string;
           if (isSuperAdmin && folder.startsWith('root/')) {
+            // SUPER_ADMIN explicit root bypass (e.g. "root/Assets")
             rawPath = folder.substring(5); // Remove 'root/' prefix to get real Cloudinary root path
+          } else if (devBypassTenant) {
+            // DEV MODE: respect folder exactly as provided (including empty string for global root)
+            rawPath = folder;
           } else {
+            // Default: enforce tenant prefix
             rawPath = folder.startsWith('tenants/') ? folder : `${tenantPrefix}${folder}`;
           }
           
@@ -91,8 +102,9 @@ export class MediaController {
 
           const fullPath = rawPath;
           
-          // Only enforce tenantPrefix if NOT a super admin OR if not using the root/ bypass
-          if (!isSuperAdmin && !fullPath.startsWith(tenantPrefix)) {
+          // Only enforce tenantPrefix if NOT a super admin, NOT in dev bypass mode,
+          // or not using the root/ bypass
+          if (!devBypassTenant && !isSuperAdmin && !fullPath.startsWith(tenantPrefix)) {
             throw new BadRequestException("Access denied: You can only access media within your own tenant folder.");
           }
 
@@ -104,8 +116,10 @@ export class MediaController {
             fields: parsedFields,
           });
 
+          // NOTE: Do NOT wrap with { success, data } here because the shared
+          // api-client will automatically unwrap such shapes, and our frontend
+          // mediaService expects the full object (with count, next_cursor, etc.).
           return {
-            success: true,
             folder: result.folder,
             count: result.count,
             image_count: result.count,
@@ -130,14 +144,16 @@ export class MediaController {
 
           // SECURITY FIX: Enforce tenant isolation for all requested folders
           const securedFolderList = folderList.map(f => {
-            const rawPath = f.startsWith('tenants/') ? f : `${tenantPrefix}${f}`;
+            const rawPath = devBypassTenant
+              ? f // DEV MODE: respect folder exactly as given
+              : (f.startsWith('tenants/') ? f : `${tenantPrefix}${f}`);
             
             // Basic traversal check
             if (rawPath.includes('..')) {
                throw new BadRequestException(`Invalid folder path: Traversal detected in ${f}`);
             }
             
-            if (!rawPath.startsWith(tenantPrefix)) {
+            if (!devBypassTenant && !rawPath.startsWith(tenantPrefix)) {
               throw new BadRequestException(`Access denied to folder: ${f}`);
             }
             return rawPath;
@@ -200,8 +216,9 @@ export class MediaController {
             fields: parsedFields,
           });
 
+          // Same note as above: avoid { success, data } wrapper so api-client
+          // does not auto-unwrap and break the expected response shape.
           return {
-            success: true,
             folders: result.folders,
             count: result.count,
             image_count: result.count,
@@ -236,12 +253,19 @@ export class MediaController {
       const tenantId = req.tenantId;
       const tenantPrefix = `tenants/${tenantId}/`;
       const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
+      const devBypassTenant =
+        process.env.NODE_ENV !== 'production' &&
+        process.env.CLOUDINARY_DEV_ALLOW_GLOBAL !== 'false';
       
       // SECURITY FIX: Enforce tenant isolation for listed folders
-      // SUPER_ADMIN can bypass this if they provide 'root' as the root
+      // SUPER_ADMIN can bypass this if they provide 'root' as the root.
+      // In dev mode (devBypassTenant), allow browsing global folders without tenant prefix.
       let targetRoot: string;
       if (isSuperAdmin && root === 'root') {
         targetRoot = ''; // Real root of Cloudinary
+      } else if (devBypassTenant) {
+        // DEV MODE: use root exactly as provided (or global root if empty)
+        targetRoot = root || '';
       } else {
         targetRoot = root 
           ? (root.startsWith('tenants/') ? root : `${tenantPrefix}${root}`)
@@ -253,7 +277,7 @@ export class MediaController {
          throw new BadRequestException("Invalid folder path: Traversal detected");
       }
       
-      if (!isSuperAdmin && targetRoot !== `tenants/${tenantId}` && !targetRoot.startsWith(tenantPrefix)) {
+      if (!devBypassTenant && !isSuperAdmin && targetRoot !== `tenants/${tenantId}` && !targetRoot.startsWith(tenantPrefix)) {
         throw new BadRequestException("Access denied: Invalid folder path.");
       }
       
