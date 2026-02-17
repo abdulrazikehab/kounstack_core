@@ -83,6 +83,19 @@ export class JwtAuthGuard implements CanActivate {
     
     // If no API key was provided and route is not public, require JWT token
     if (!token) {
+      // Log detailed information about why token wasn't found
+      const hasAuthHeader = !!request.headers.authorization;
+      const hasCookies = !!request.cookies;
+      const cookieNames = request.cookies ? Object.keys(request.cookies) : [];
+      const hasAccessTokenCookie = !!request?.cookies?.accessToken;
+      
+      this.logger.warn(
+        `No authentication token found for ${request.method} ${request.url} | ` +
+        `hasAuthHeader: ${hasAuthHeader}, hasCookies: ${hasCookies}, ` +
+        `cookieNames: [${cookieNames.join(', ')}], hasAccessTokenCookie: ${hasAccessTokenCookie} | ` +
+        `host: ${request.headers.host}, origin: ${request.headers.origin || 'none'}`
+      );
+      
       throw new UnauthorizedException('No authentication token or API key provided');
     }
 
@@ -179,19 +192,26 @@ export class JwtAuthGuard implements CanActivate {
       const errorMessage = error?.message || 'No message';
       const hasToken = !!token;
       const tokenLength = token?.length || 0;
+      const tokenPreview = token ? `${token.substring(0, 20)}...` : 'none';
+      const hasAuthHeader = !!request.headers.authorization;
+      const hasCookie = !!request.cookies?.accessToken;
       
-      this.logger.warn(
+      this.logger.error(
         `JWT verification failed: ${errorName} - ${errorMessage} | ` +
-        `hasToken: ${hasToken}, tokenLength: ${tokenLength}, ` +
-        `endpoint: ${request.url}`
+        `hasToken: ${hasToken}, tokenLength: ${tokenLength}, tokenPreview: ${tokenPreview} | ` +
+        `hasAuthHeader: ${hasAuthHeader}, hasCookie: ${hasCookie} | ` +
+        `endpoint: ${request.url}, method: ${request.method} | ` +
+        `host: ${request.headers.host}, origin: ${request.headers.origin || 'none'}`
       );
       
       // Handle JWT verification errors with better messages
       if (error?.name === 'JsonWebTokenError') {
         if (error.message?.includes('invalid signature')) {
           this.logger.error(
-            'JWT signature verification failed - possible JWT_SECRET mismatch between services. ' +
-            'Ensure JWT_SECRET is the same in both app-auth and app-core services.'
+            '🚨 CRITICAL: JWT signature verification failed - JWT_SECRET mismatch detected! ' +
+            'The JWT_SECRET used to sign tokens in app-auth does NOT match the JWT_SECRET ' +
+            'used to verify tokens in app-core. This is a configuration error. ' +
+            'Ensure JWT_SECRET environment variable is identical in both services.'
           );
           throw new UnauthorizedException('فشل المصادقة - يرجى تسجيل الدخول مرة أخرى');
         }
@@ -200,9 +220,14 @@ export class JwtAuthGuard implements CanActivate {
           throw new UnauthorizedException('انتهت صلاحية جلسة المستخدم - يرجى تسجيل الدخول مرة أخرى');
         }
         if (error.message?.includes('jwt malformed')) {
-          this.logger.warn('JWT token is malformed');
+          this.logger.warn('JWT token is malformed - token format is invalid');
           throw new UnauthorizedException('رمز المصادقة غير صالح - يرجى تسجيل الدخول مرة أخرى');
         }
+        if (error.message?.includes('jwt must be provided')) {
+          this.logger.warn('JWT token was not provided in request');
+          throw new UnauthorizedException('رمز المصادقة مطلوب - يرجى تسجيل الدخول');
+        }
+        this.logger.error(`Unhandled JsonWebTokenError: ${errorMessage}`);
         throw new UnauthorizedException(`فشل المصادقة: ${error.message || 'رمز غير صالح'}`);
       }
       if (error instanceof UnauthorizedException) {
@@ -213,8 +238,8 @@ export class JwtAuthGuard implements CanActivate {
       }
       // For other errors, wrap in UnauthorizedException
       this.logger.error(
-        `Unexpected authentication error: ${errorMessage} | ` +
-        `Stack: ${error?.stack?.substring(0, 200)}...`
+        `Unexpected authentication error: ${errorName} - ${errorMessage} | ` +
+        `Stack: ${error?.stack?.substring(0, 300)}...`
       );
       throw new UnauthorizedException('فشل المصادقة - يرجى تسجيل الدخول مرة أخرى');
     }
@@ -222,14 +247,38 @@ export class JwtAuthGuard implements CanActivate {
 
   private extractTokenFromHeader(request: any): string | undefined {
     // Try Authorization header first (client explicit intent > implicit cookie)
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    if (type === 'Bearer' && token) {
-      return token;
+    const authHeader = request.headers.authorization;
+    if (authHeader) {
+      const [type, token] = authHeader.split(' ');
+      if (type === 'Bearer' && token) {
+        this.logger.debug(`Token extracted from Authorization header (length: ${token.length})`);
+        return token;
+      } else if (type && !token) {
+        this.logger.warn(`Authorization header present but token is missing. Type: ${type}`);
+      } else if (!type) {
+        this.logger.warn(`Authorization header present but format is invalid: ${authHeader.substring(0, 20)}...`);
+      }
     }
-    // Fallback to cookie
-    if (request?.cookies?.accessToken) {
-      return request.cookies.accessToken;
+    
+    // Fallback to cookie - check multiple possible cookie names
+    const cookieToken = request?.cookies?.accessToken || 
+                       request?.cookies?.token || 
+                       request?.cookies?.authToken;
+    
+    if (cookieToken) {
+      this.logger.debug(`Token extracted from cookie (length: ${cookieToken.length})`);
+      return cookieToken;
     }
+    
+    // Log when no token is found with more context
+    if (!authHeader && !cookieToken) {
+      const cookieNames = request?.cookies ? Object.keys(request.cookies) : [];
+      this.logger.debug(
+        `No token found in Authorization header or cookies for ${request.url} | ` +
+        `Available cookies: [${cookieNames.join(', ')}]`
+      );
+    }
+    
     return undefined;
   }
 }
