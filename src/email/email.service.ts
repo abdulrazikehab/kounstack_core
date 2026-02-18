@@ -1064,13 +1064,27 @@ export class EmailService implements OnModuleInit {
           this.logger.error(`❌ Resend failure for ${email}:`, JSON.stringify(errorDetails, null, 2));
           
           // Log specific Resend error types
-          if (error.message?.includes('API key')) {
-            this.logger.error(`❌ CRITICAL: Resend API key is invalid or missing. Check RESEND_API_KEY environment variable.`);
-          } else if (error.message?.includes('domain') || error.message?.includes('not verified')) {
-            this.logger.error(`❌ CRITICAL: Resend domain not verified. The 'onboarding@resend.dev' email can only send to your verified email address.`);
-            this.logger.error(`❌ To fix: Verify your domain in Resend dashboard or use a verified sender email.`);
-          } else if (error.message?.includes('rate limit') || error.message?.includes('quota')) {
+          const errorMsgLower = (error.message || '').toLowerCase();
+          const errorResponse = error.response || error.data || {};
+          
+          if (errorMsgLower.includes('api key') || errorMsgLower.includes('unauthorized') || error.statusCode === 401) {
+            this.logger.error(`❌ CRITICAL: Resend API key is invalid or expired. Check RESEND_API_KEY environment variable.`);
+            this.logger.error(`❌ Status Code: ${error.statusCode || 'N/A'}`);
+          } else if (errorMsgLower.includes('domain') || errorMsgLower.includes('not verified') || 
+                     errorMsgLower.includes('sender') || errorMsgLower.includes('from address') ||
+                     error.statusCode === 403 || errorResponse.message?.includes('domain')) {
+            this.logger.error(`❌ CRITICAL: Resend domain/email not verified!`);
+            this.logger.error(`❌ Attempted sender: ${fromEmail}`);
+            this.logger.error(`❌ Error: ${error.message || JSON.stringify(errorResponse)}`);
+            this.logger.error(`❌ To fix:`);
+            this.logger.error(`❌   1. Go to https://resend.com/domains`);
+            this.logger.error(`❌   2. Verify the domain 'kounworld.com'`);
+            this.logger.error(`❌   3. Or use 'onboarding@resend.dev' (only works for your verified email)`);
+            this.logger.error(`❌   4. Or configure SMTP as primary method`);
+          } else if (errorMsgLower.includes('rate limit') || errorMsgLower.includes('quota') || error.statusCode === 429) {
             this.logger.error(`❌ CRITICAL: Resend rate limit or quota exceeded.`);
+          } else {
+            this.logger.error(`❌ Resend error details: ${JSON.stringify({ message: error.message, statusCode: error.statusCode, response: errorResponse }, null, 2)}`);
           }
           
           this.logger.warn('⚠️ Falling back to SMTP for verification email...');
