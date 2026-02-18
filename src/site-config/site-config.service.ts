@@ -55,6 +55,10 @@ export class SiteConfigService {
         storeType: 'GENERAL',
         businessModel: 'B2C',
         customerRegistrationRequestEnabled: false,
+        // New: how orders should be handled by default
+        // true  => auto-approve orders after payment
+        // false => keep orders in PENDING status until merchant approves/rejects
+        orderAutoAccept: true,
       };
       
       return {
@@ -170,6 +174,11 @@ export class SiteConfigService {
       isPrivateStore: (tenant as any)?.isPrivateStore || false,
       businessModel: (tenantSettings.businessModel as 'B2B' | 'B2C') || 'B2C',
       customerRegistrationRequestEnabled: (tenant as any)?.customerRegistrationRequestEnabled || false,
+      // New: per-tenant order handling preference (fallback to true)
+      orderAutoAccept:
+        (tenantSettings as any).orderAutoAccept !== undefined
+          ? Boolean((tenantSettings as any).orderAutoAccept)
+          : true,
     };
 
     if (!cfg) {

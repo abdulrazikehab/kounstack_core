@@ -113,7 +113,7 @@ export class OrderService {
     // Ensure tenant exists / create if missing
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, name: true, subdomain: true, isPrivateStore: true },
+      select: { id: true, name: true, subdomain: true, isPrivateStore: true, settings: true },
     });
 
     if (tenant?.isPrivateStore && !paymentOptions?.userId) {
@@ -344,7 +344,14 @@ export class OrderService {
         }
 
         const isPaidViaWallet = !!(isWalletRequested && walletRef && !isWalletPaymentPending); 
-        const initialStatus: OrderStatus = 'APPROVED' as any;
+
+        // Determine initial order status based on store configuration:
+        // - If orderAutoAccept is explicitly false, keep new orders in PENDING so merchant can approve/reject.
+        // - Otherwise, keep existing behavior and auto-approve on creation.
+        const orderSettings = (tenant?.settings || {}) as any;
+        const autoAcceptEnabled =
+          orderSettings.orderAutoAccept !== undefined ? Boolean(orderSettings.orderAutoAccept) : true;
+        const initialStatus: OrderStatus = (autoAcceptEnabled ? 'APPROVED' : 'PENDING') as any;
         const initialPaymentStatus = isPaidViaWallet ? 'SUCCEEDED' : 'PENDING';
         const isGuest = !paymentOptions?.userId;
 
