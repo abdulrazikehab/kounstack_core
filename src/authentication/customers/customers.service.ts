@@ -374,7 +374,28 @@ export class CustomersService {
     
     if (!emailSent && emailErrorObj) {
       response.emailError = emailErrorObj instanceof Error ? emailErrorObj.message : 'Email sending failed';
-      response.emailWarning = 'Email sending failed, but you can use the code above to verify.';
+      
+      // In production, provide helpful diagnostic information
+      if (process.env.NODE_ENV === 'production') {
+        const hasResend = !!process.env.RESEND_API_KEY;
+        const hasSmtp = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+        
+        if (!hasResend && !hasSmtp) {
+          response.emailWarning = 'Email service not configured. Please contact support.';
+          response.emailDiagnostic = 'Both Resend API and SMTP credentials are missing. Check server logs for details.';
+        } else if (!hasResend) {
+          response.emailWarning = 'Email sending failed. SMTP fallback may have issues.';
+          response.emailDiagnostic = 'Resend API not configured. Check SMTP credentials in server logs.';
+        } else if (!hasSmtp) {
+          response.emailWarning = 'Email sending failed. Resend API may have issues.';
+          response.emailDiagnostic = 'SMTP fallback not configured. Check Resend API key in server logs.';
+        } else {
+          response.emailWarning = 'Email sending failed despite both services being configured.';
+          response.emailDiagnostic = 'Both Resend and SMTP are configured but failed. Check server logs for detailed error.';
+        }
+      } else {
+        response.emailWarning = 'Email sending failed, but you can use the code above to verify.';
+      }
     }
     
     this.logger.log(`âœ… Customer signup completed for: ${normalizedEmail} - NO CUSTOMER CREATED (waiting for OTP verification)`);

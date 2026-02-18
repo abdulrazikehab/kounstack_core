@@ -797,19 +797,32 @@ export class EmailService implements OnModuleInit {
     this.logger.log(`📧 OTP Email Branding: Always using Koun platform branding. Target Store URL: ${tenantUrl}`);
 
     // If Resend is configured, use it first (check flag set during initialization)
-    if (this.useResend || process.env.RESEND_API_KEY) {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      // For Resend, use onboarding@resend.dev as safe default (works without domain verification)
-      // Don't fall back to SMTP_USER which might be a Gmail address that Resend rejects
-      const fromEmail = process.env.RESEND_FROM || 'onboarding@resend.dev';
-      // Use the brand name directly - the SDK or nodemailer will handle quoting if needed
-      const fromName = brandName; 
-      
-      // Log exactly what we're trying to do
-      this.logger.log(`📧 Attempting to send verification email via Resend: ${fromName} <${fromEmail}> to ${email}`);
-      
-      // Determine if this is a Koun platform email
-      const isKounPlatformEmail = !isStoreBranded && (brandName === platformName || brandName === 'Koun' || brandName === 'كون');
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const shouldUseResend = this.useResend || !!resendApiKey;
+    
+    this.logger.log(`📧 Email sending decision for ${email}:`);
+    this.logger.log(`📧   - this.useResend: ${this.useResend}`);
+    this.logger.log(`📧   - RESEND_API_KEY exists: ${!!resendApiKey}`);
+    this.logger.log(`📧   - RESEND_API_KEY value: ${resendApiKey ? resendApiKey.substring(0, 10) + '...' : 'NOT SET'}`);
+    this.logger.log(`📧   - Will use Resend: ${shouldUseResend}`);
+    
+    if (shouldUseResend) {
+      if (!resendApiKey) {
+        this.logger.error(`❌ CRITICAL: useResend flag is true but RESEND_API_KEY is not set!`);
+        this.logger.error(`❌ Falling back to SMTP...`);
+      } else {
+        const resend = new Resend(resendApiKey);
+        // For Resend, use onboarding@resend.dev as safe default (works without domain verification)
+        // Don't fall back to SMTP_USER which might be a Gmail address that Resend rejects
+        const fromEmail = process.env.RESEND_FROM || 'onboarding@resend.dev';
+        // Use the brand name directly - the SDK or nodemailer will handle quoting if needed
+        const fromName = brandName; 
+        
+        // Log exactly what we're trying to do
+        this.logger.log(`📧 Attempting to send verification email via Resend: ${fromName} <${fromEmail}> to ${email}`);
+        
+        // Determine if this is a Koun platform email
+        const isKounPlatformEmail = !isStoreBranded && (brandName === platformName || brandName === 'Koun' || brandName === 'كون');
       
       // Premium Koun Template for platform emails
       const kawnPremiumTemplate = `
@@ -1007,61 +1020,62 @@ export class EmailService implements OnModuleInit {
         </html>
       `;
 
-      // Choose template based on branding
-      const htmlTemplate = isKounPlatformEmail ? kawnPremiumTemplate : storeTemplate;
+        // Choose template based on branding
+        const htmlTemplate = isKounPlatformEmail ? kawnPremiumTemplate : storeTemplate;
 
-      try {
-        this.logger.log(`📧 ========================================`);
-        this.logger.log(`📧 SENDING VERIFICATION EMAIL`);
-        this.logger.log(`📧 Recipient: ${email}`);
-        this.logger.log(`📧 Verification Code: ${code}`);
-        this.logger.log(`📧 Brand: ${brandName}`);
-        this.logger.log(`📧 ========================================`);
-        
-        const result: any = await (resend as any).emails.send({
-          from: `${fromName} <${fromEmail}>`,
-          to: email,
-          subject: `رمز التحقق - ${brandName}`,
-          html: htmlTemplate,
-        });
-        
-        if (!result || result.error) {
-          const errorMsg = result?.error?.message || 'Unknown Resend error or empty response';
-          this.logger.error(`❌ Resend API returned error: ${errorMsg}`);
-          throw new Error(errorMsg);
+        try {
+          this.logger.log(`📧 ========================================`);
+          this.logger.log(`📧 SENDING VERIFICATION EMAIL`);
+          this.logger.log(`📧 Recipient: ${email}`);
+          this.logger.log(`📧 Verification Code: ${code}`);
+          this.logger.log(`📧 Brand: ${brandName}`);
+          this.logger.log(`📧 ========================================`);
+          
+          const result: any = await (resend as any).emails.send({
+            from: `${fromName} <${fromEmail}>`,
+            to: email,
+            subject: `رمز التحقق - ${brandName}`,
+            html: htmlTemplate,
+          });
+          
+          if (!result || result.error) {
+            const errorMsg = result?.error?.message || 'Unknown Resend error or empty response';
+            this.logger.error(`❌ Resend API returned error: ${errorMsg}`);
+            throw new Error(errorMsg);
+          }
+          
+          const messageId = result.id || result.data?.id || 'resend';
+          this.logger.log(`✅ Email sent via Resend to ${email}! Message ID: ${messageId}`);
+          
+          return {
+            messageId,
+            previewUrl: '',
+            isTestEmail: false,
+            code,
+          };
+        } catch (error: any) {
+          const errorDetails = {
+            message: error.message || String(error),
+            code: error.code,
+            statusCode: error.statusCode,
+            response: error.response,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          };
+          this.logger.error(`❌ Resend failure for ${email}:`, JSON.stringify(errorDetails, null, 2));
+          
+          // Log specific Resend error types
+          if (error.message?.includes('API key')) {
+            this.logger.error(`❌ CRITICAL: Resend API key is invalid or missing. Check RESEND_API_KEY environment variable.`);
+          } else if (error.message?.includes('domain') || error.message?.includes('not verified')) {
+            this.logger.error(`❌ CRITICAL: Resend domain not verified. The 'onboarding@resend.dev' email can only send to your verified email address.`);
+            this.logger.error(`❌ To fix: Verify your domain in Resend dashboard or use a verified sender email.`);
+          } else if (error.message?.includes('rate limit') || error.message?.includes('quota')) {
+            this.logger.error(`❌ CRITICAL: Resend rate limit or quota exceeded.`);
+          }
+          
+          this.logger.warn('⚠️ Falling back to SMTP for verification email...');
+          // Fall through to SMTP logic below
         }
-        
-        const messageId = result.id || result.data?.id || 'resend';
-        this.logger.log(`✅ Email sent via Resend to ${email}! Message ID: ${messageId}`);
-        
-        return {
-          messageId,
-          previewUrl: '',
-          isTestEmail: false,
-          code,
-        };
-      } catch (error: any) {
-        const errorDetails = {
-          message: error.message || String(error),
-          code: error.code,
-          statusCode: error.statusCode,
-          response: error.response,
-          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-        };
-        this.logger.error(`❌ Resend failure for ${email}:`, JSON.stringify(errorDetails, null, 2));
-        
-        // Log specific Resend error types
-        if (error.message?.includes('API key')) {
-          this.logger.error(`❌ CRITICAL: Resend API key is invalid or missing. Check RESEND_API_KEY environment variable.`);
-        } else if (error.message?.includes('domain') || error.message?.includes('not verified')) {
-          this.logger.error(`❌ CRITICAL: Resend domain not verified. The 'onboarding@resend.dev' email can only send to your verified email address.`);
-          this.logger.error(`❌ To fix: Verify your domain in Resend dashboard or use a verified sender email.`);
-        } else if (error.message?.includes('rate limit') || error.message?.includes('quota')) {
-          this.logger.error(`❌ CRITICAL: Resend rate limit or quota exceeded.`);
-        }
-        
-        this.logger.warn('⚠️ Falling back to SMTP for verification email...');
-        // Fall through to SMTP logic below
       }
     }
 
