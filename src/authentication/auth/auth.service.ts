@@ -237,7 +237,20 @@ export class AuthService {
         this.logger.log(`✅ Email sent successfully to ${email}`);
       } catch (error) {
         emailError = error;
-        this.logger.error(`❌ Email sending failed: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.error(`❌ Email sending failed for ${email}:`, {
+          message: error instanceof Error ? error.message : String(error),
+          code: (error as any)?.code,
+          stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined,
+        });
+        
+        // In production, log critical error details
+        if (process.env.NODE_ENV === 'production') {
+          this.logger.error(`❌ PRODUCTION EMAIL FAILURE - Check email service configuration:`);
+          this.logger.error(`❌   - RESEND_API_KEY: ${process.env.RESEND_API_KEY ? 'SET' : 'MISSING'}`);
+          this.logger.error(`❌   - SMTP_USER: ${process.env.SMTP_USER ? 'SET' : 'MISSING'}`);
+          this.logger.error(`❌   - SMTP_PASS: ${process.env.SMTP_PASS ? 'SET' : 'MISSING'}`);
+        }
+        
         emailResult = { messageId: 'failed', previewUrl: '', isTestEmail: false };
       }
 

@@ -1041,7 +1041,25 @@ export class EmailService implements OnModuleInit {
           code,
         };
       } catch (error: any) {
-        this.logger.error(`❌ Resend failure for ${email}: ${error.message || error}`);
+        const errorDetails = {
+          message: error.message || String(error),
+          code: error.code,
+          statusCode: error.statusCode,
+          response: error.response,
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        };
+        this.logger.error(`❌ Resend failure for ${email}:`, JSON.stringify(errorDetails, null, 2));
+        
+        // Log specific Resend error types
+        if (error.message?.includes('API key')) {
+          this.logger.error(`❌ CRITICAL: Resend API key is invalid or missing. Check RESEND_API_KEY environment variable.`);
+        } else if (error.message?.includes('domain') || error.message?.includes('not verified')) {
+          this.logger.error(`❌ CRITICAL: Resend domain not verified. The 'onboarding@resend.dev' email can only send to your verified email address.`);
+          this.logger.error(`❌ To fix: Verify your domain in Resend dashboard or use a verified sender email.`);
+        } else if (error.message?.includes('rate limit') || error.message?.includes('quota')) {
+          this.logger.error(`❌ CRITICAL: Resend rate limit or quota exceeded.`);
+        }
+        
         this.logger.warn('⚠️ Falling back to SMTP for verification email...');
         // Fall through to SMTP logic below
       }
@@ -1322,28 +1340,52 @@ export class EmailService implements OnModuleInit {
         code, // Return code for development convenience
       };
     } catch (error: any) {
-      this.logger.error(`❌ Failed to send verification email to ${email}:`, error);
-      this.logger.error(`Error details - Code: ${(error as any).code}, Message: ${error.message}`);
+      const errorDetails = {
+        message: error.message || String(error),
+        code: error.code,
+        command: error.command,
+        response: error.response,
+        responseCode: error.responseCode,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      };
+      this.logger.error(`❌ Failed to send verification email to ${email}:`, JSON.stringify(errorDetails, null, 2));
+      
+      // Log configuration status for diagnostics
+      const hasResend = !!process.env.RESEND_API_KEY;
+      const hasSmtp = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+      this.logger.error(`❌ Email Configuration Status:`);
+      this.logger.error(`❌   - Resend API Key: ${hasResend ? 'CONFIGURED' : 'MISSING'}`);
+      this.logger.error(`❌   - SMTP Credentials: ${hasSmtp ? 'CONFIGURED' : 'MISSING'}`);
+      this.logger.error(`❌   - Using Test Account: ${this.isTestAccount ? 'YES (emails not sent to real inbox)' : 'NO'}`);
       
       if ((error as any).code === 'EAUTH') {
-        throw new Error('Email authentication failed. Please check SMTP credentials.');
+        const errorMsg = 'Email authentication failed. Please check SMTP credentials (SMTP_USER and SMTP_PASS).';
+        this.logger.error(`❌ ${errorMsg}`);
+        throw new Error(errorMsg);
       } else if ((error as any).code === 'ECONNECTION') {
-        throw new Error('Failed to connect to SMTP server. Please check SMTP settings.');
+        const errorMsg = 'Failed to connect to SMTP server. Please check SMTP_HOST and SMTP_PORT settings.';
+        this.logger.error(`❌ ${errorMsg}`);
+        throw new Error(errorMsg);
       } else if (error.message === 'Email sending timeout') {
-        throw new Error('Email sending timed out. The SMTP server is too slow or unreachable.');
+        const errorMsg = 'Email sending timed out. The SMTP server is too slow or unreachable.';
+        this.logger.error(`❌ ${errorMsg}`);
+        throw new Error(errorMsg);
       }
       
       // Check for invalid email address error
       if (error.message && (error.message.includes('Invalid login') || error.message.includes('Username and Password not accepted'))) {
-        throw new Error('SMTP Authentication failed. Please check your email and password.');
+        const errorMsg = 'SMTP Authentication failed. Please check your SMTP_USER and SMTP_PASS (use Gmail App Password, not regular password).';
+        this.logger.error(`❌ ${errorMsg}`);
+        throw new Error(errorMsg);
       }
       
       // Check for recipient errors
       if (error.response && (error.response.includes('550') || error.response.includes('does not exist'))) {
         const errorMsg = `Invalid email address: ${email}`;
-        this.logger.error(errorMsg);
+        this.logger.error(`❌ ${errorMsg}`);
         throw new Error(errorMsg);
       }
+      
       // In development, don't throw - let the code be displayed
       if (process.env.NODE_ENV === 'development') {
         this.logger.warn(`⚠️ Development mode: Verification code is ${code} (email sending failed: ${error.message})`);
@@ -1354,7 +1396,10 @@ export class EmailService implements OnModuleInit {
           code,
         };
       }
-      throw new Error(`Failed to send verification email: ${error.message || String(error)}`);
+      
+      const finalErrorMsg = `Failed to send verification email: ${error.message || String(error)}. Check server logs for details.`;
+      this.logger.error(`❌ ${finalErrorMsg}`);
+      throw new Error(finalErrorMsg);
     }
   }
 

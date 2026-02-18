@@ -321,9 +321,22 @@ export class CustomersService {
       try {
         emailResult = await this.emailService.sendVerificationEmail(normalizedEmail, verificationCode, actualTenantId);
         emailSent = true;
+        this.logger.log(`✅ Email sent successfully to ${normalizedEmail}`);
       } catch (err: any) {
         emailErrorObj = err;
-        this.logger.error(`â‌Œ Email sending failed: ${err.message}`);
+        this.logger.error(`❌ Email sending failed for ${normalizedEmail}:`, {
+          message: err.message,
+          code: err.code,
+          stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+        });
+        
+        // In production, log critical error details
+        if (process.env.NODE_ENV === 'production') {
+          this.logger.error(`❌ PRODUCTION EMAIL FAILURE - Check email service configuration:`);
+          this.logger.error(`❌   - RESEND_API_KEY: ${process.env.RESEND_API_KEY ? 'SET' : 'MISSING'}`);
+          this.logger.error(`❌   - SMTP_USER: ${process.env.SMTP_USER ? 'SET' : 'MISSING'}`);
+          this.logger.error(`❌   - SMTP_PASS: ${process.env.SMTP_PASS ? 'SET' : 'MISSING'}`);
+        }
       }
 
       // 2. Send SMS OTP if phone is provided
@@ -656,9 +669,21 @@ export class CustomersService {
       try {
         await this.emailService.sendVerificationEmail(normalizedEmail, storedCode, tenantId);
         emailSent = true;
-        this.logger.log(`âœ… Resent verification email to ${normalizedEmail}`);
+        this.logger.log(`✅ Resent verification email to ${normalizedEmail}`);
       } catch (error: any) {
-        this.logger.error(`â‌Œ Failed to resend verification email: ${error.message}`);
+        this.logger.error(`❌ Failed to resend verification email to ${normalizedEmail}:`, {
+          message: error.message,
+          code: error.code,
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        });
+        
+        // In production, log critical error details
+        if (process.env.NODE_ENV === 'production') {
+          this.logger.error(`❌ PRODUCTION EMAIL FAILURE - Check email service configuration:`);
+          this.logger.error(`❌   - RESEND_API_KEY: ${process.env.RESEND_API_KEY ? 'SET' : 'MISSING'}`);
+          this.logger.error(`❌   - SMTP_USER: ${process.env.SMTP_USER ? 'SET' : 'MISSING'}`);
+          this.logger.error(`❌   - SMTP_PASS: ${process.env.SMTP_PASS ? 'SET' : 'MISSING'}`);
+        }
       }
 
       // 2. Send SMS if phone is available
