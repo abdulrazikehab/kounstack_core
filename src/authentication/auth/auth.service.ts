@@ -2491,35 +2491,176 @@ export class AuthService {
     }
 
     // 2. Try to find in Customer table (Store Customers)
-    const customer = await this.prismaService.customer.findUnique({
-      where: { id: payload.sub },
-      include: { tenant: true },
-    });
+    // NOTE: The customers table may not exist in this database (app-core uses PostgreSQL).
+    // Customers are managed in app-auth's MySQL database. If the table doesn't exist,
+    // we fall back to trusting the JWT payload for customer-type tokens.
+    try {
+      const customer = await this.prismaService.customer.findUnique({
+        where: { id: payload.sub },
+        include: { tenant: true },
+      });
 
-    if (customer) {
-      return {
-        ...customer,
-        role: 'CUSTOMER', // Standardize role for customers
-        name: customer.firstName ? `${customer.firstName} ${customer.lastName || ''}`.trim() : null,
-      };
+      if (customer) {
+        return {
+          ...customer,
+          role: 'CUSTOMER',
+          name: customer.firstName ? `${customer.firstName} ${customer.lastName || ''}`.trim() : null,
+        };
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      // Table doesn't exist in this database - this is expected in cross-database architecture
+      if (
+        errorMessage.includes('does not exist') ||
+        errorMessage.includes('Unknown table') ||
+        errorMessage.includes('relation') ||
+        errorMessage.includes("doesn't exist") ||
+        error?.code === 'P2021' || // Table does not exist
+        error?.code === 'P2010'    // Raw query failed
+      ) {
+        this.logger.debug(`Customer table not found in this database, checking JWT payload type...`);
+      } else {
+        this.logger.error(`Error looking up customer: ${errorMessage}`);
+      }
     }
 
     // 3. Try to find in CustomerEmployee table
-    const employee = await this.prismaService.customerEmployee.findUnique({
-      where: { id: payload.sub },
-      include: { customer: { include: { tenant: true } } },
-    });
+    // Same cross-database note as above
+    try {
+      const employee = await this.prismaService.customerEmployee.findUnique({
+        where: { id: payload.sub },
+        include: { customer: { include: { tenant: true } } },
+      });
 
-    if (employee) {
+      if (employee) {
+        return {
+          ...employee,
+          role: 'CUSTOMER_EMPLOYEE',
+          tenantId: employee.customer.tenantId,
+          tenant: employee.customer.tenant,
+          isDisabled: !employee.isActive,
+        };
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      if (
+        errorMessage.includes('does not exist') ||
+        errorMessage.includes('Unknown table') ||
+        errorMessage.includes('relation') ||
+        errorMessage.includes("doesn't exist") ||
+        error?.code === 'P2021' ||
+        error?.code === 'P2010'
+      ) {
+        this.logger.debug(`CustomerEmployee table not found in this database, checking JWT payload type...`);
+      } else {
+        this.logger.error(`Error looking up customer employee: ${errorMessage}`);
+      }
+    }
+
+    // 4. Fallback: If the token type indicates a customer/customer_employee and we couldn't
+    //    look them up in a local table (cross-database scenario), trust the JWT payload.
+    //    The JWT was signed with the same JWT_SECRET, so it's already verified.
+    const isCustomerType = payload.type === 'customer' || payload.role === 'CUSTOMER';
+    const isEmployeeType = payload.type === 'customer_employee' || payload.role === 'CUSTOMER_EMPLOYEE';
+    
+    if (isCustomerType && payload.sub) {
+      this.logger.log(`✅ Trusting JWT payload for customer: ${payload.email || payload.sub} (tenant: ${payload.tenantId || 'not provided'})`);
+      
+      // Look up the tenant in this database to attach tenant info (if tenantId is provided)
+      let tenant = null;
+      if (payload.tenantId) {
+        try {
+          tenant = await this.prismaService.tenant.findUnique({
+            where: { id: payload.tenantId },
+          });
+        } catch (e) {
+          this.logger.warn(`Could not look up tenant ${payload.tenantId}: ${e}`);
+        }
+      }
+
       return {
-        ...employee,
-        role: 'CUSTOMER_EMPLOYEE',
-        tenantId: employee.customer.tenantId,
-        tenant: employee.customer.tenant,
-        // Map isActive to !isDisabled for JwtStrategy check
-        isDisabled: !employee.isActive,
+        id: payload.sub,
+        email: payload.email || `${payload.sub}@customer.local`,
+        role: 'CUSTOMER',
+        type: 'customer', // Explicitly set type
+        tenantId: payload.tenantId || null,
+        tenant,
+        firstName: payload.firstName || null,
+        lastName: payload.lastName || null,
+        name: payload.firstName ? `${payload.firstName} ${payload.lastName || ''}`.trim() : null,
+        isDisabled: false, // Customers from JWT are assumed active
       };
     }
+
+    if (isEmployeeType && payload.sub) {
+      this.logger.log(`✅ Trusting JWT payload for customer employee: ${payload.email || payload.sub} (tenant: ${payload.tenantId || 'not provided'})`);
+      
+      let tenant = null;
+      if (payload.tenantId) {
+        try {
+          tenant = await this.prismaService.tenant.findUnique({
+            where: { id: payload.tenantId },
+          });
+        } catch (e) {
+          this.logger.warn(`Could not look up tenant ${payload.tenantId}: ${e}`);
+        }
+      }
+
+      return {
+        id: payload.sub,
+        email: payload.email || `${payload.sub}@employee.local`,
+        role: 'CUSTOMER_EMPLOYEE',
+        type: 'customer_employee', // Explicitly set type
+        tenantId: payload.tenantId || null,
+        tenant,
+        customerId: payload.customerId || null,
+        employeeId: payload.employeeId || null,
+        isDisabled: false, // Employees from JWT are assumed active
+      };
+    }
+
+    // 5. Final fallback: If we have a valid sub and it looks like a customer/employee token
+    //    but doesn't have explicit type/role, still trust it if we have email or tenantId
+    if (payload.sub && (payload.email || payload.tenantId)) {
+      const inferredType = payload.type || (payload.role === 'CUSTOMER' ? 'customer' : payload.role === 'CUSTOMER_EMPLOYEE' ? 'customer_employee' : null);
+      const inferredRole = payload.role || (payload.type === 'customer' ? 'CUSTOMER' : payload.type === 'customer_employee' ? 'CUSTOMER_EMPLOYEE' : null);
+      
+      if (inferredType === 'customer' || inferredType === 'customer_employee' || inferredRole === 'CUSTOMER' || inferredRole === 'CUSTOMER_EMPLOYEE') {
+        this.logger.warn(`⚠️ Final fallback: Creating user object from payload for ${payload.sub}`);
+        
+        let tenant = null;
+        if (payload.tenantId) {
+          try {
+            tenant = await this.prismaService.tenant.findUnique({
+              where: { id: payload.tenantId },
+            });
+          } catch (e) {
+            this.logger.warn(`Could not look up tenant ${payload.tenantId}: ${e}`);
+          }
+        }
+        
+        return {
+          id: payload.sub,
+          email: payload.email || `${payload.sub}@fallback.local`,
+          role: inferredRole || 'CUSTOMER',
+          type: inferredType || 'customer',
+          tenantId: payload.tenantId || null,
+          tenant,
+          firstName: payload.firstName || null,
+          lastName: payload.lastName || null,
+          name: payload.firstName ? `${payload.firstName} ${payload.lastName || ''}`.trim() : null,
+          isDisabled: false,
+        };
+      }
+    }
+
+    this.logger.warn(`❌ No user found and no valid fallback for payload:`, {
+      sub: payload.sub,
+      type: payload.type,
+      role: payload.role,
+      email: payload.email,
+      tenantId: payload.tenantId,
+    });
 
     return null;
   }

@@ -1,0 +1,334 @@
+{
+  "timestamp": "2026-02-11T12:23:22.304Z",
+  "orderId": "09b8abc6-fcac-4a47-9ec4-0f2cf4e3bfed",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "voiceline 10$",
+      "serialNumber": "da62303d-2be4-4aa3-b9dd-151f8e3ad622",
+      "pin": "80bac7eb79d34edf9aba1614ca5482c2"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T12:59:17.112Z",
+  "orderId": "754ae87e-4147-49b8-aed1-50dca2216aac",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "e7606ec1-2259-47f1-88b9-a0a4c78cc782",
+      "pin": "970b3fd85b1645a2bee039421522d908"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "text",
+    "excel",
+    "pdf",
+    "email",
+    "whatsapp"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T13:22:16.489Z",
+  "orderId": "1b929027-4e36-4d53-8598-85b01e715854",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "302b25f8-0c4b-4d8c-a225-1f4c810b5123",
+      "pin": "bfc3ef93ae2e4a45a8dcb7e9365bb004"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "text",
+    "excel",
+    "pdf",
+    "email",
+    "whatsapp"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T13:34:50.333Z",
+  "orderId": "3bd35938-33c2-41b9-a6f0-c22e19ca630d",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "638e45e0-5bb4-4e5f-a6e4-ae053fcd8e24",
+      "pin": "050c827337e1472ca5d8c72d372d6e2a"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "text",
+    "excel",
+    "pdf",
+    "email",
+    "whatsapp"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T13:36:26.422Z",
+  "orderId": "a2794dce-40e5-4e0a-8d36-4474b5222a36",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "14e2f4d5-22fd-4d86-8f7a-51bdac4e41c9",
+      "pin": "31920e08be7445168065addba34cfd0e"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "text"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T13:36:50.602Z",
+  "orderId": "2e1fae3d-2442-4344-9407-618e996d86b7",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "bd1f5135-3825-4f55-bc8d-090a060ecc61",
+      "pin": "39cc074fddd148cfb72c05d3770d26fb"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T13:56:56.447Z",
+  "orderId": "79b48865-7fe6-426d-9765-8880b8a13d4a",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "a0d5170d-20c0-41c4-a623-cf67a480344b",
+      "pin": "ce32d3b274654d7e85e0d85b8eef0788"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T14:18:16.376Z",
+  "orderId": "70e957a3-a5c9-42c5-b311-9d3c0740cdb6",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "d87e5024-0e76-4afd-9721-16c5b2c59993",
+      "pin": "dd54f3dd9f1b419697df1c5e1c585a4e"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T14:49:09.584Z",
+  "orderId": "ad657805-27f7-46d4-842a-13839b4dd036",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "15338361-2d58-4ecc-af68-ce77348cc072",
+      "pin": "6379504626074407805ba3719ae50ccb"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T14:59:47.106Z",
+  "orderId": "f1471fab-b449-4f0c-8bd8-9050703e2619",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "22c79335-fcfe-4d3e-bd55-fea66808140a",
+      "pin": "3fa196592abf4cde9cb3affaddfa55c3"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T15:11:09.906Z",
+  "orderId": "e0762610-65a4-446e-b535-254daca72a12",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "5bb18b67-51e7-47a3-b1f3-807721cfac96",
+      "pin": "cf601d9dda324283bd258ab5306c17a2"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T15:12:40.577Z",
+  "orderId": "e7f798a9-37fe-4aba-ac3b-05bf0e9a3974",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "1198a443-edc7-4135-b17d-ced9fbbf2348",
+      "pin": "c1bca61e7ab44cbca38387d6c1a63183"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T15:22:03.815Z",
+  "orderId": "da5cfe87-2ab2-46b0-8abb-ace658cd367a",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "46c7c47e-7284-45ad-927b-7b06da7303c2",
+      "pin": "e7b42c7575084701a6c2e2c69543bae8"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T15:51:08.788Z",
+  "orderId": "ea63f76f-7eaa-4c10-8db9-e96043521768",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "1d128184-9c00-4641-8aca-437dd43764bf",
+      "pin": "703027c08159430aa3360c862e722f47"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T15:52:22.318Z",
+  "orderId": "ee2a0000-2c12-485d-ae9d-80b7bc6d055b",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "abea9954-c5f4-4a79-9cda-43301413727d",
+      "pin": "a05ee7e6647448b9b4a6ac98438f9376"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T16:18:54.433Z",
+  "orderId": "c622219e-bba0-4390-acae-fc054745ca7d",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "9fa8628c-e30c-4be4-b968-50e4e3da81ce",
+      "pin": "33645375bc974d01966778cb2a2fe118"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-14T16:20:03.749Z",
+  "orderId": "017d3fdf-4159-4e7f-a00b-54178e5c8a1a",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Free Fire Card - 100 Diamonds",
+      "serialNumber": "095d5d43-e16d-4cac-be31-29ed842add92",
+      "pin": "a977baf4e3964811911eba10a8e0a13f"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "email"
+  ]
+}
+---
+{
+  "timestamp": "2026-02-16T07:45:56.014Z",
+  "orderId": "8172919d-74bd-4ef0-9254-efa59df2d25a",
+  "tenantId": "bb939c87-b661-4758-b91d-ee15efd1d0b3",
+  "effectiveUserId": "3ad18d11-29eb-4b57-920f-c78d4dc261da",
+  "serialNumbers": [
+    {
+      "productName": "Steam Wallet Card  $10 (Oman Store)",
+      "serialNumber": "3f3acc14-8a16-4df2-a73d-d3791bd5e1c8",
+      "pin": "cdd3547c3fe24a80963978418777609b"
+    }
+  ],
+  "deliveryOptionsList": [
+    "inventory",
+    "text"
+  ]
+}
+---

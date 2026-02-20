@@ -1544,32 +1544,44 @@ export class CustomersService {
   }
 
   async deleteCustomer(tenantId: string, customerId: string) {
-    this.logger.log(`🔍 Checking customer for deletion: customerId=${customerId}, tenantId=${tenantId}`);
+    this.logger.log(`🗑️ Starting deleteCustomer process: customerId=${customerId}, tenantId=${tenantId}`);
     
+    // Performance/Debug check: count all customers for this tenant to verify model access
+    try {
+      const totalCount = await this.prisma.customer.count({ where: { tenantId } });
+      this.logger.log(`📊 Debug: Total customers in tenant ${tenantId}: ${totalCount}`);
+    } catch (countError: any) {
+      this.logger.error(`❌ Error counting customers: ${countError.message}`);
+    }
+
     // Verify customer exists and belongs to tenant
     const existingCustomer = await this.prisma.customer.findFirst({
       where: {
         id: customerId,
         tenantId,
-        // recoveryId, // Removed as it's not needed for deletion
       },
     });
 
     if (!existingCustomer) {
-      // Check if customer exists in a different tenant
-      const customerInOtherTenant = await this.prisma.customer.findFirst({
+      this.logger.warn(`⚠️ Customer ${customerId} not found in tenant ${tenantId}. Checking other tenants...`);
+      
+      // Check if customer exists in ANY tenant (broad search)
+      const customerInAnyTenant = await this.prisma.customer.findFirst({
         where: { id: customerId },
-        select: { tenantId: true },
+        select: { tenantId: true, email: true },
       });
       
-      if (customerInOtherTenant) {
-        this.logger.warn(`⚠️ Customer ${customerId} exists but belongs to tenant ${customerInOtherTenant.tenantId}, not ${tenantId}`);
+      if (customerInAnyTenant) {
+        this.logger.warn(`🚫 Customer ${customerId} (${customerInAnyTenant.email}) found but belongs to tenant ${customerInAnyTenant.tenantId}, not ${tenantId}`);
         throw new NotFoundException(`Customer not found in your store. This customer belongs to a different store.`);
       } else {
-        this.logger.warn(`⚠️ Customer ${customerId} does not exist in any tenant`);
+        // Broad search by email just in case ID is wrong
+        this.logger.log(`🔍 Customer ID ${customerId} not found anywhere. Searching if any customer exists for this tenant...`);
         throw new NotFoundException(`Customer not found. The customer may have already been deleted.`);
       }
     }
+
+    this.logger.log(`✅ Customer found for deletion: ${existingCustomer.email} (ID: ${existingCustomer.id})`);
 
     // Invalidate all refresh tokens for this customer before deletion
     await this.prisma.refreshToken.deleteMany({

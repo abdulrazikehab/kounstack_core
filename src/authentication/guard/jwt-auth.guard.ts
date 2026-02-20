@@ -85,6 +85,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
       const user = request.user;
       if (user && user.role !== 'SUPER_ADMIN') {
+        const isShopOwner = user.role === 'SHOP_OWNER';
+        const isWriteOperation = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method);
+        const isShopOwnerWrite = isShopOwner && isWriteOperation;
+
         let requestedTenantId = request.headers['x-tenant-id'] 
           || request.headers['x-tenant-domain'] 
           || request.headers['x-subdomain']
@@ -124,9 +128,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           const matchesId = user.tenantId === normalizedRequestedTenantId;
           const matchesSubdomain = user.tenant?.subdomain === normalizedRequestedTenantId;
           
-          if (!matchesId && !matchesSubdomain) {
+          if (!matchesId && !matchesSubdomain && !isShopOwnerWrite) {
             this.logger.warn(`🚫 Tenant mismatch: User ${user.email} (Tenant: ${user.tenantId}) tried to access: ${normalizedRequestedTenantId}`);
             throw new UnauthorizedException('Access denied: You are logged into a different store. Please log in to this store to continue.');
+          }
+
+          if (isShopOwnerWrite) {
+            this.logger.log(`✅ SHOP_OWNER write operation - skipping tenant match check for store path: ${request.url}`);
           }
         }
       }

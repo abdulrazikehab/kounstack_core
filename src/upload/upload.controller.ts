@@ -23,6 +23,9 @@ import { AuthenticatedRequest } from '../types/request.types';
 import { validateFileSafety } from '../utils/file-validation.util';
 import { UserRole } from '../types/user-role.enum';
 
+// Logger for fileFilter callbacks - Multer may invoke them without controller context, so avoid using `this`
+const uploadFileFilterLogger = new Logger('UploadController.FileFilter');
+
 @Controller('upload')
 @UseGuards(JwtAuthGuard)
 export class UploadController {
@@ -47,19 +50,28 @@ export class UploadController {
     }
   }
 
+  // Cloudinary free tier max file size is 10MB. GIFs allowed up to 20MB (paid plans support larger).
+  // Videos can be up to 100MB on Cloudinary (free tier supports up to 100MB)
+  static readonly CLOUDINARY_MAX_FILE_SIZE = 10 * 1024 * 1024;
+  static readonly GIF_MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB for GIF
+  static readonly VIDEO_MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB for videos
+
   @Post('images')
   @UseGuards(TenantRequiredGuard)
   @UseInterceptors(FilesInterceptor('files', 10, {
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB limit
+      fileSize: UploadController.GIF_MAX_FILE_SIZE, // 20MB so GIFs up to 20MB pass multer
     },
     fileFilter: (req, file, cb) => {
-      // Validate file types
+      // Validate file types (use module-level logger - Multer may call this without controller context)
       const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      uploadFileFilterLogger.log(`File filter check: mimetype=${file.mimetype}, originalname=${file.originalname}`);
       if (allowedMimes.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        cb(new BadRequestException(`File type ${file.mimetype} is not allowed`), false);
+        const error = new BadRequestException(`File type ${file.mimetype} is not allowed. Allowed types: ${allowedMimes.join(', ')}`);
+        uploadFileFilterLogger.warn(`File type rejected: ${file.mimetype} for file ${file.originalname}`);
+        cb(error, false);
       }
     },
   }))
@@ -74,8 +86,28 @@ export class UploadController {
       throw new BadRequestException('No files uploaded');
     }
 
+    // Validate file size: 20MB for GIF, 10MB for other images
+    files.forEach(file => {
+      const isGif = file.mimetype === 'image/gif';
+      const maxSize = isGif ? UploadController.GIF_MAX_FILE_SIZE : UploadController.CLOUDINARY_MAX_FILE_SIZE;
+      const maxMB = isGif ? 20 : 10;
+      if (file.size > maxSize) {
+        throw new BadRequestException(
+          `File size is too large. Maximum allowed is ${maxMB}MB${isGif ? ' for GIF' : ''}. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
+        );
+      }
+    });
+
     // Validate file safety (Magic Numbers)
-    files.forEach(file => validateFileSafety(file));
+    files.forEach(file => {
+      this.logger.log(`Validating file safety: mimetype=${file.mimetype}, size=${file.size}, buffer length=${file.buffer?.length || 0}`);
+      try {
+        validateFileSafety(file);
+      } catch (error: any) {
+        this.logger.error(`File safety validation failed for ${file.originalname}:`, error.message);
+        throw error;
+      }
+    });
 
     // Get tenantId from multiple sources
     const tenantId = req.user?.tenantId || req.tenantId;
@@ -107,7 +139,12 @@ export class UploadController {
       };
     } catch (error: any) {
       this.logger.error('File upload failed:', error);
-      throw new BadRequestException(`File upload failed: ${error?.message || 'Unknown error'}`);
+      const msg = error?.message || 'Unknown error';
+      // Surface Cloudinary "file size too large" so user sees a clear message
+      if (typeof msg === 'string' && /file size too large|maximum is \d+/i.test(msg)) {
+        throw new BadRequestException(msg);
+      }
+      throw new BadRequestException(`File upload failed: ${msg}`);
     }
   }
 
@@ -182,7 +219,7 @@ export class UploadController {
   @UseGuards(TenantRequiredGuard)
   @UseInterceptors(FilesInterceptor('images', 10, {
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB limit
+      fileSize: UploadController.CLOUDINARY_MAX_FILE_SIZE, // 10MB - Cloudinary free tier limit
     },
     fileFilter: (req, file, cb) => {
       const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -241,7 +278,96 @@ export class UploadController {
       };
     } catch (error: any) {
       this.logger.error('Product image upload failed:', error);
-      throw new BadRequestException(`Product image upload failed: ${error?.message || 'Unknown error'}`);
+      const msg = error?.message || 'Unknown error';
+      if (typeof msg === 'string' && /file size too large|maximum is \d+/i.test(msg)) {
+        throw new BadRequestException(msg);
+      }
+      throw new BadRequestException(`Product image upload failed: ${msg}`);
+    }
+  }
+
+  @Post('videos')
+  @UseGuards(TenantRequiredGuard)
+  @UseInterceptors(FilesInterceptor('files', 5, {
+    limits: {
+      fileSize: UploadController.VIDEO_MAX_FILE_SIZE, // 100MB for videos
+    },
+    fileFilter: (req, file, cb) => {
+      // Validate video file types
+      const allowedMimes = [
+        'video/mp4',
+        'video/webm',
+        'video/ogg',
+        'video/quicktime', // .mov files
+        'video/x-msvideo', // .avi files
+      ];
+      uploadFileFilterLogger.log(`Video file filter check: mimetype=${file.mimetype}, originalname=${file.originalname}`);
+      if (allowedMimes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        const error = new BadRequestException(`File type ${file.mimetype} is not allowed. Allowed types: ${allowedMimes.join(', ')}`);
+        uploadFileFilterLogger.warn(`Video file type rejected: ${file.mimetype} for file ${file.originalname}`);
+        cb(error, false);
+      }
+    },
+  }))
+  async uploadVideos(
+    @Request() req: AuthenticatedRequest,
+    @UploadedFiles() files: Express.Multer.File[],
+  ): Promise<{ 
+    message: string; 
+    files: CloudinaryUploadResponse[] 
+  }> {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files uploaded');
+    }
+
+    // Validate file size: 100MB maximum for videos
+    files.forEach(file => {
+      const maxMB = 100;
+      if (file.size > UploadController.VIDEO_MAX_FILE_SIZE) {
+        throw new BadRequestException(
+          `File size is too large. Maximum allowed is ${maxMB}MB for videos. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
+        );
+      }
+    });
+
+    // Get tenantId from multiple sources
+    const tenantId = req.user?.tenantId || req.tenantId;
+    
+    if (!tenantId || tenantId === 'default' || tenantId === 'system') {
+      this.logger.error('Video upload failed: Invalid tenantId', {
+        tenantId,
+        hasUserTenantId: !!req.user?.tenantId,
+        hasReqTenantId: !!req.tenantId,
+      });
+      throw new ForbiddenException(
+        'You must set up a market first before uploading videos. Please go to Market Setup to create your store.'
+      );
+    }
+
+    this.logger.log(`Uploading ${files.length} videos for tenant ${tenantId}`);
+
+    try {
+      const uploadResults = await this.cloudinaryService.uploadMultipleVideos(
+        files,
+        `tenants/${tenantId}/videos`
+      );
+
+      this.logger.log(`Successfully uploaded ${uploadResults.length} videos`);
+
+      return {
+        message: `${uploadResults.length} video files uploaded successfully`,
+        files: uploadResults,
+      };
+    } catch (error: any) {
+      this.logger.error('Video upload failed:', error);
+      const msg = error?.message || 'Unknown error';
+      // Surface Cloudinary "file size too large" so user sees a clear message
+      if (typeof msg === 'string' && /file size too large|maximum is \d+/i.test(msg)) {
+        throw new BadRequestException(msg);
+      }
+      throw new BadRequestException(`Video upload failed: ${msg}`);
     }
   }
 }

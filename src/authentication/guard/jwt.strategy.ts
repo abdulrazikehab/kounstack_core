@@ -59,12 +59,31 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     //   throw new UnauthorizedException('Token has been revoked');
     // }
 
+    // Determine role and type from user object or payload
+    // Priority: user.role > payload.type inference > payload.role
+    let role = user.role;
+    if (!role && payload.type === 'customer') {
+      role = 'CUSTOMER';
+    } else if (!role && payload.type === 'customer_employee') {
+      role = 'CUSTOMER_EMPLOYEE';
+    } else if (!role && payload.role) {
+      role = payload.role;
+    }
+    
+    // Determine type from payload or infer from role
+    let type = payload.type;
+    if (!type && role === 'CUSTOMER') {
+      type = 'customer';
+    } else if (!type && role === 'CUSTOMER_EMPLOYEE') {
+      type = 'customer_employee';
+    }
+
     return {
       id: user.id,
       userId: user.id,
       email: user.email,
-      role: user.role ?? (payload.type === 'customer' ? 'CUSTOMER' : null),
-      type: payload.type,
+      role: role || null,
+      type: type || null,
       tenantId: user.tenantId,
       firstName: user.firstName,
       lastName: user.lastName,

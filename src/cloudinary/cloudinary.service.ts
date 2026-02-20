@@ -71,6 +71,49 @@ export class CloudinaryService {
     return Promise.all(uploadPromises);
   }
 
+  async uploadVideo(
+    file: Express.Multer.File,
+    folder: string = 'ecommerce'
+  ): Promise<CloudinaryUploadResponse> {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          resource_type: 'video',
+          chunk_size: 6000000, // 6MB chunks for large videos
+        },
+        (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
+          if (error) {
+            this.logger.error('Cloudinary video upload error:', error);
+            reject(new Error(`Video upload failed: ${error.message}`));
+          } else if (result) {
+            resolve({
+              publicId: result.public_id,
+              url: result.url,
+              secureUrl: result.secure_url,
+              format: result.format || 'mp4',
+              width: result.width || 0,
+              height: result.height || 0,
+              bytes: result.bytes,
+            });
+          } else {
+            reject(new Error('Video upload failed: No result returned'));
+          }
+        }
+      );
+
+      uploadStream.end(file.buffer);
+    });
+  }
+
+  async uploadMultipleVideos(
+    files: Express.Multer.File[],
+    folder: string = 'ecommerce'
+  ): Promise<CloudinaryUploadResponse[]> {
+    const uploadPromises = files.map(file => this.uploadVideo(file, folder));
+    return Promise.all(uploadPromises);
+  }
+
   async deleteImage(publicId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       cloudinary.uploader.destroy(publicId, (error, result) => {

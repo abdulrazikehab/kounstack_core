@@ -393,13 +393,40 @@ export class CustomersController {
     @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 50,
     @Query('search') search?: string,
   ) {
-    return this.customersService.getCustomers(req.user.tenantId, page, limit, search);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.get(`${authUrl}/auth/customers`, { 
+          params: { page, limit, search },
+          headers 
+        }),
+      );
+      return data?.data || data;
+    } catch (error: any) {
+      return this.customersService.getCustomers(req.user.tenantId, page, limit, search);
+    }
   }
 
   @Get('stats')
   @UseGuards(JwtAuthGuard)
   async getCustomerStats(@Request() req: any) {
-    return this.customersService.getCustomerStats(req.user.tenantId);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.get(`${authUrl}/auth/customers/stats`, { headers }),
+      );
+      return data?.data || data;
+    } catch (error: any) {
+      return this.customersService.getCustomerStats(req.user.tenantId);
+    }
   }
 
   @Get('email/:email')
@@ -408,7 +435,19 @@ export class CustomersController {
     @Request() req: any,
     @Param('email') email: string,
   ) {
-    return this.customersService.getCustomerByEmail(req.user.tenantId, email);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.get(`${authUrl}/auth/customers/email/${email}`, { headers }),
+      );
+      return data?.data || data;
+    } catch (error: any) {
+      return this.customersService.getCustomerByEmail(req.user.tenantId, email);
+    }
   }
 
   @Get(':id')
@@ -417,7 +456,19 @@ export class CustomersController {
     @Request() req: any,
     @Param('id') customerId: string,
   ) {
-    return this.customersService.getCustomerById(req.user.tenantId, customerId);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.get(`${authUrl}/auth/customers/${customerId}`, { headers }),
+      );
+      return data?.data || data;
+    } catch (error: any) {
+      return this.customersService.getCustomerById(req.user.tenantId, customerId);
+    }
   }
 
   @Put('profile')
@@ -445,7 +496,19 @@ export class CustomersController {
     @Param('id') customerId: string,
     @Body() updateCustomerDto: UpdateCustomerDto,
   ) {
-    return this.customersService.updateCustomer(req.user.tenantId, customerId, updateCustomerDto);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.put(`${authUrl}/auth/customers/${customerId}`, updateCustomerDto, { headers }),
+      );
+      return data?.data || data;
+    } catch (error: any) {
+      return this.customersService.updateCustomer(req.user.tenantId, customerId, updateCustomerDto);
+    }
   }
 
   @Delete(':id')
@@ -455,12 +518,21 @@ export class CustomersController {
     @Request() req: any,
     @Param('id') customerId: string,
   ) {
-    this.logger.log(`🗑️ Delete customer request: customerId=${customerId}, tenantId=${req.user?.tenantId}`);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers: Record<string, string> = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+
+    this.logger.log(`🗑️ Delete customer request (proxied): customerId=${customerId}, tenantId=${req.user?.tenantId}`);
     try {
-      return await this.customersService.deleteCustomer(req.user.tenantId, customerId);
+      await firstValueFrom(
+        this.httpService.delete(`${authUrl}/auth/customers/${customerId}`, { headers }),
+      );
+      return;
     } catch (error: any) {
-      this.logger.error(`❌ Failed to delete customer ${customerId}: ${error?.message}`, error?.stack);
-      throw error;
+      this.logger.error(`❌ Failed to delete customer ${customerId} via auth service: ${error?.message}`, error?.stack);
+      throw new BadRequestException(error?.response?.data?.message || 'Failed to delete customer');
     }
   }
 
@@ -471,7 +543,19 @@ export class CustomersController {
     @Request() req: any,
     @Param('id') customerId: string,
   ) {
-    return this.customersService.forceLogoutCustomer(req.user.tenantId, customerId);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.post(`${authUrl}/auth/customers/${customerId}/force-logout`, {}, { headers }),
+      );
+      return data?.data || data;
+    } catch (error: any) {
+      return this.customersService.forceLogoutCustomer(req.user.tenantId, customerId);
+    }
   }
 
   @Put(':id/email-settings')
@@ -482,7 +566,19 @@ export class CustomersController {
     @Param('id') customerId: string,
     @Body('emailDisabled') emailDisabled: boolean,
   ) {
-    return this.customersService.updateCustomerEmailSettings(req.user.tenantId, customerId, emailDisabled);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.put(`${authUrl}/auth/customers/${customerId}/email-settings`, { emailDisabled }, { headers }),
+      );
+      return data?.data || data;
+    } catch (error: any) {
+      return this.customersService.updateCustomerEmailSettings(req.user.tenantId, customerId, emailDisabled);
+    }
   }
 
   @Post('upsert')
@@ -491,7 +587,19 @@ export class CustomersController {
     @Request() req: any,
     @Body() customerData: CreateCustomerDto,
   ) {
-    return this.customersService.createOrUpdateCustomer(req.user.tenantId, customerData);
+    const authUrl = this.resolveAuthServiceUrl();
+    const headers = {
+      Authorization: req.headers.authorization,
+      'x-tenant-id': req.user.tenantId,
+    };
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.post(`${authUrl}/auth/customers/upsert`, customerData, { headers }),
+      );
+      return data?.data || data;
+    } catch (error: any) {
+      return this.customersService.createOrUpdateCustomer(req.user.tenantId, customerData);
+    }
   }
 
   @Post('change-password')

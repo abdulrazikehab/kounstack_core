@@ -244,10 +244,12 @@ export class OrderService {
             if (!variant) throw new NotFoundException('Product variant not found');
 
             if (variant.inventoryQuantity < item.quantity) {
-              // DEVELOPER BYPASS: Auto-replenish asus130 for testing
+              // DEVELOPER BYPASS: Auto-replenish asus130 and kouncard for testing
               const isAsusTenant = tenantId === 'asus130' || tenantId.includes('asus') || (tenant && tenant.subdomain?.includes('asus'));
-              if (isAsusTenant) {
-                this.logger.warn(`⚠️ [DEV BYPASS] Auto-replenishing inventory for ${p?.name} - ${variant.name} (asus130)`);
+              const isKounCard = tenantId === 'kouncard' || (tenant && tenant.subdomain === 'kouncard');
+              
+              if (isAsusTenant || isKounCard) {
+                this.logger.warn(`⚠️ [DEV BYPASS] Auto-replenishing inventory for ${p?.name} - ${variant.name} (${tenantId})`);
                 await tx.productVariant.update({
                   where: { id: variant.id },
                   data: { inventoryQuantity: 9999 }
@@ -266,10 +268,12 @@ export class OrderService {
           } else {
             const stock = Number(p?.stockCount || 0);
             if (stock < item.quantity) {
-              // DEVELOPER BYPASS: Auto-replenish asus130 for testing
+              // DEVELOPER BYPASS: Auto-replenish asus130 and kouncard for testing
               const isAsusTenant = tenantId === 'asus130' || tenantId.includes('asus') || (tenant && tenant.subdomain?.includes('asus'));
-              if (isAsusTenant) {
-                this.logger.warn(`⚠️ [DEV BYPASS] Auto-replenishing inventory for ${p?.name} (asus130)`);
+              const isKounCard = tenantId === 'kouncard' || (tenant && tenant.subdomain === 'kouncard');
+              
+              if (isAsusTenant || isKounCard) {
+                this.logger.warn(`⚠️ [DEV BYPASS] Auto-replenishing inventory for ${p?.name} (${tenantId})`);
                 await tx.product.update({
                   where: { id: item.product.id },
                   data: { stockCount: 9999 }

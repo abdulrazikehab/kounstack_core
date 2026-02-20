@@ -32,10 +32,23 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   
   try {
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create(AppModule, {
+      bodyParser: false, // Disable default to configure our own with proper limits
+      rawBody: false,
+    });
     
     // Set global prefix to match Nginx proxy and frontend expectations
     app.setGlobalPrefix('api');
+    
+    // CRITICAL: Configure body parser limits for larger file uploads
+    // Get the underlying Express instance and configure body size limits
+    const expressApp = app.getHttpAdapter().getInstance();
+    const express = require('express');
+    
+    // Add body parsers with increased limits (25MB to accommodate 20MB GIFs + overhead)
+    // Note: multipart/form-data is handled by Multer, not these parsers
+    expressApp.use(express.json({ limit: '25mb' }));
+    expressApp.use(express.urlencoded({ limit: '25mb', extended: true }));
     
     // CRITICAL: Enable CORS FIRST before any other middleware to prevent duplicate headers
     // Enable CORS with proper origin handling to prevent duplicate headers

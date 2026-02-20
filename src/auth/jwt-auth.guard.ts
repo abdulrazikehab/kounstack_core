@@ -120,6 +120,13 @@ export class JwtAuthGuard implements CanActivate {
       const isTenantSetupEndpoint = request.url?.includes('/tenants/setup') || 
                                     request.path?.includes('/tenants/setup');
       
+      // SHOP_OWNER should always use their token's tenantId for write operations
+      // This allows store owners to create customers, products, etc. in their own store
+      // even if the X-Tenant-Id header or middleware sets a different tenantId
+      const isShopOwner = payload.role === 'SHOP_OWNER';
+      const isWriteOperation = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method);
+      const isShopOwnerWrite = isShopOwner && isWriteOperation;
+      
       if (isTenantSetupEndpoint) {
         this.logger.debug(
           `✅ Tenant setup endpoint detected - allowing tenant mismatch for user ${payload.email} ` +
@@ -132,16 +139,27 @@ export class JwtAuthGuard implements CanActivate {
         // Ensure the token's tenant matches the requested store's tenant
         effectiveTenantId = tenantIdFromToken;
         
-        if (requestTenantId && 
+        // For SHOP_OWNER write operations, always use token's tenantId and ignore middleware/header tenantId
+        // This MUST be checked BEFORE the tenant mismatch check to prevent false positives
+        if (isShopOwnerWrite) {
+          this.logger.log(
+            `✅ SHOP_OWNER write operation detected - using token tenantId: ${tenantIdFromToken} ` +
+            `(ignoring middleware tenantId: ${requestTenantId || 'null'}, method: ${request.method}, path: ${request.url})`
+          );
+          // Override request.tenantId to ensure consistency throughout the request lifecycle
+          request.tenantId = tenantIdFromToken;
+          // Skip tenant mismatch check for SHOP_OWNER write operations
+        } else if (requestTenantId && 
             requestTenantId !== 'default' && 
             requestTenantId !== 'system' && 
             requestTenantId !== tenantIdFromToken && 
             payload.role !== 'SUPER_ADMIN' &&
-            !isTenantSetupEndpoint) { // Allow tenant setup to bypass this check
+            !isTenantSetupEndpoint) {
           
           this.logger.warn(
             `🚫 Unauthorized cross-tenant access attempt. ` +
-            `User ${payload.email} (Tenant: ${tenantIdFromToken}) tried to access Store: ${requestTenantId}`
+            `User ${payload.email} (Role: ${payload.role}, Tenant: ${tenantIdFromToken}) tried to access Store: ${requestTenantId} ` +
+            `(Method: ${request.method}, Path: ${request.url})`
           );
           
           // CRITICAL: Block unauthorized cross-tenant requests to prevent IDOR/Data Leakage

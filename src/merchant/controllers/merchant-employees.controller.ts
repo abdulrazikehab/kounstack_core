@@ -67,15 +67,28 @@ export class MerchantEmployeesController {
       throw new BadRequestException('Authentication required. Please log in first.');
     }
 
-    const isCustomer = req.user?.type === 'customer' || req.user?.role === 'CUSTOMER';
-    const isShopOwner = req.user?.role === 'SHOP_OWNER' || req.user?.role === 'SUPER_ADMIN';
+    // Check user type - try multiple ways to determine if user is customer or shop owner
+    const userType = req.user?.type;
+    const userRole = req.user?.role;
+    const isCustomer = userType === 'customer' || userRole === 'CUSTOMER' || userRole === 'CUSTOMER_EMPLOYEE';
+    const isShopOwner = userRole === 'SHOP_OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+
+    this.logger.log('User type check:', { 
+      userType, 
+      userRole, 
+      isCustomer, 
+      isShopOwner,
+      userId: req.user?.id 
+    });
 
     if (!isCustomer && !isShopOwner) {
       this.logger.warn('Unauthorized user tried to access employees', {
         userType: req.user?.type,
-        userRole: req.user?.role
+        userRole: req.user?.role,
+        userId: req.user?.id,
+        email: req.user?.email
       });
-      throw new BadRequestException('Only customers and shop owners can access employees');
+      throw new BadRequestException(`Only customers and shop owners can access employees. Current user type: ${userType || 'unknown'}, role: ${userRole || 'unknown'}`);
     }
 
     // For shop owners, get staff from staff service
@@ -152,15 +165,33 @@ export class MerchantEmployeesController {
 
       return employeesData;
     } catch (error: any) {
-      this.logger.error('Failed to fetch customer employees:', error);
+      this.logger.error('Failed to fetch customer employees:', {
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        customerId: req.user?.id,
+        userType: req.user?.type,
+        userRole: req.user?.role,
+      });
+      
       if (error.response) {
         const errorData = error.response.data;
-        const message = typeof errorData === 'object' 
-          ? (errorData.message || JSON.stringify(errorData)) 
-          : errorData;
+        let message = typeof errorData === 'object' 
+          ? (errorData.message || errorData.error || JSON.stringify(errorData)) 
+          : (errorData || 'Failed to fetch employees');
+        
+        // Provide more helpful error messages
+        if (typeof message === 'string') {
+          if (message.includes('User no longer exists')) {
+            message = 'Your account could not be verified. Please log out and log back in.';
+          } else if (message.includes('Customer not found')) {
+            message = 'Customer account not found. Please ensure you are logged in as a customer.';
+          }
+        }
+        
         throw new BadRequestException(message || 'Failed to fetch employees');
       }
-      throw new BadRequestException('Failed to fetch employees');
+      throw new BadRequestException('Failed to fetch employees. Please try again or contact support.');
     }
   }
 
@@ -229,17 +260,29 @@ export class MerchantEmployeesController {
       req.user.role = req.headers['x-user-role'];
     }
 
-    // Check if user is a customer or shop owner
-    const isCustomer = req.user?.type === 'customer' || req.user?.role === 'CUSTOMER';
-    const isShopOwner = req.user?.role === 'SHOP_OWNER' || req.user?.role === 'SUPER_ADMIN';
+    // Check user type - try multiple ways to determine if user is customer or shop owner
+    const userType = req.user?.type;
+    const userRole = req.user?.role;
+    const isCustomer = userType === 'customer' || userRole === 'CUSTOMER' || userRole === 'CUSTOMER_EMPLOYEE';
+    const isShopOwner = userRole === 'SHOP_OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+
+    this.logger.log('User type check for create:', { 
+      userType, 
+      userRole, 
+      isCustomer, 
+      isShopOwner,
+      userId: req.user?.id,
+      email: req.user?.email
+    });
 
     if (!isCustomer && !isShopOwner) {
       this.logger.warn('Unauthorized user tried to create employee', {
         userType: req.user?.type,
         userRole: req.user?.role,
-        userId: req.user?.id
+        userId: req.user?.id,
+        email: req.user?.email
       });
-      throw new BadRequestException(`Only customers and shop owners can create employees. Current user type: ${req.user?.type || req.user?.role || 'unknown'}`);
+      throw new BadRequestException(`Only customers and shop owners can create employees. Current user type: ${userType || 'unknown'}, role: ${userRole || 'unknown'}`);
     }
 
     // For customers, they don't need tenantId - they use customerId
@@ -425,12 +468,29 @@ export class MerchantEmployeesController {
       
       // Use safeLog for redaction
       safeLog(this.logger, `Calling auth service: ${authUrl}`, employeeData);
+      
+      // Log token info for debugging (without exposing the full token)
+      this.logger.log(`Proxying to auth service with token:`, {
+        hasToken: !!token,
+        tokenLength: token.length,
+        tokenPrefix: token.substring(0, 20) + '...',
+        userFromRequest: {
+          id: req.user?.id,
+          type: req.user?.type,
+          role: req.user?.role,
+          email: req.user?.email,
+          tenantId: req.user?.tenantId,
+        },
+      });
 
       const response = await firstValueFrom(
         this.httpService.post(authUrl, employeeData, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
+            // Forward tenant domain header if present
+            ...(req.headers['x-tenant-domain'] ? { 'X-Tenant-Domain': req.headers['x-tenant-domain'] } : {}),
+            ...(req.headers['x-tenant-id'] ? { 'X-Tenant-Id': req.headers['x-tenant-id'] } : {}),
           },
           timeout: 10000,
         })
@@ -444,20 +504,61 @@ export class MerchantEmployeesController {
         response: error.response?.data,
         status: error.response?.status,
         statusText: error.response?.statusText,
+        statusCode: error.response?.status,
+        customerId: req.user?.id,
+        userType: req.user?.type,
+        userRole: req.user?.role,
+        hasToken: !!req.headers.authorization,
+        tokenPrefix: req.headers.authorization?.substring(0, 20),
       });
       
+      // Handle HTTP errors from auth service
       if (error.response) {
-        const errorMessage = error.response.data?.message || 
-                           error.response.data?.error || 
-                           `Failed to create employee: ${error.response.statusText}`;
+        const errorData = error.response.data;
+        const statusCode = error.response.status;
+        
+        // If it's a 401, it means authentication failed at the auth service
+        if (statusCode === 401) {
+          this.logger.error('Auth service returned 401 - token validation failed', {
+            errorData,
+            customerId: req.user?.id,
+          });
+          throw new BadRequestException('Authentication failed. Please log out and log back in. If the issue persists, your account may need to be re-verified.');
+        }
+        
+        let errorMessage = typeof errorData === 'object' 
+          ? (errorData.message || errorData.error || JSON.stringify(errorData))
+          : (errorData || `Failed to create employee: ${error.response.statusText}`);
+        
+        // Provide more helpful error messages
+        if (typeof errorMessage === 'string') {
+          if (errorMessage.includes('User no longer exists') || errorMessage.includes('User account not found')) {
+            errorMessage = 'Your account could not be verified. Please log out and log back in. If the issue persists, your account may have been deleted or needs to be re-verified.';
+          } else if (errorMessage.includes('Customer not found')) {
+            errorMessage = 'Customer account not found. Please ensure you are logged in as a customer.';
+          } else if (errorMessage.includes('already exists')) {
+            errorMessage = 'An employee with this email already exists.';
+          } else if (errorMessage.includes('Unauthorized') || errorMessage.includes('Authentication')) {
+            errorMessage = 'Authentication failed. Please log out and log back in.';
+          }
+        }
+        
         throw new BadRequestException(errorMessage);
       }
       
+      // Handle non-HTTP errors
       if (error.message) {
+        // Check for specific error messages
+        if (error.message.includes('User no longer exists') || error.message.includes('User account not found')) {
+          throw new BadRequestException('Your account could not be verified. Please log out and log back in. If the issue persists, your account may have been deleted or needs to be re-verified.');
+        }
+        if (error.message.includes('timeout') || error.message.includes('ECONNREFUSED')) {
+          throw new BadRequestException('Unable to connect to the authentication service. Please try again in a moment.');
+        }
         throw new BadRequestException(error.message);
       }
       
-      throw new BadRequestException('Failed to create employee');
+      throw new BadRequestException('Failed to create employee. Please try again or contact support.');
     }
   }
 
@@ -470,11 +571,13 @@ export class MerchantEmployeesController {
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    const isCustomer = req.user?.type === 'customer' || req.user?.role === 'CUSTOMER';
-    const isShopOwner = req.user?.role === 'SHOP_OWNER' || req.user?.role === 'SUPER_ADMIN';
+    const userType = req.user?.type;
+    const userRole = req.user?.role;
+    const isCustomer = userType === 'customer' || userRole === 'CUSTOMER' || userRole === 'CUSTOMER_EMPLOYEE';
+    const isShopOwner = userRole === 'SHOP_OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
 
     if (!isCustomer && !isShopOwner) {
-      throw new BadRequestException('Only customers and shop owners can update employees');
+      throw new BadRequestException(`Only customers and shop owners can update employees. Current user type: ${userType || 'unknown'}, role: ${userRole || 'unknown'}`);
     }
 
     if (isCustomer) {
@@ -504,9 +607,11 @@ export class MerchantEmployeesController {
     @Param('id') id: string,
     @Body('amount') amount: number,
   ) {
-    const isCustomer = req.user?.type === 'customer' || req.user?.role === 'CUSTOMER';
+    const userType = req.user?.type;
+    const userRole = req.user?.role;
+    const isCustomer = userType === 'customer' || userRole === 'CUSTOMER' || userRole === 'CUSTOMER_EMPLOYEE';
     if (!isCustomer) {
-      throw new BadRequestException('Only customers can add balance to employees');
+      throw new BadRequestException(`Only customers can add balance to employees. Current user type: ${userType || 'unknown'}, role: ${userRole || 'unknown'}`);
     }
 
     if (!amount || amount <= 0) {
@@ -612,10 +717,12 @@ export class MerchantEmployeesController {
     @Request() req: any,
     @Param('id') id: string,
   ) {
-    const isCustomer = req.user?.type === 'customer' || req.user?.role === 'CUSTOMER';
+    const userType = req.user?.type;
+    const userRole = req.user?.role;
+    const isCustomer = userType === 'customer' || userRole === 'CUSTOMER' || userRole === 'CUSTOMER_EMPLOYEE';
 
     if (!isCustomer) {
-      throw new BadRequestException('Only customers can delete their employees');
+      throw new BadRequestException(`Only customers can delete their employees. Current user type: ${userType || 'unknown'}, role: ${userRole || 'unknown'}`);
     }
 
     try {
